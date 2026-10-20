@@ -1,0 +1,43 @@
+﻿# Maven
+target/
+**/target/
+
+# Java
+*.class
+*.jar
+*.war
+hs_err_pid*
+
+# IDEs
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+
+# VS Code
+.vscode/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Local application configuration
+application-local.yml
+application-local.yaml
+application-local.properties
+application-dev.yml
+application-dev.yaml
+application-dev.properties
+
+# Logs
+*.log
+logs/
+
+# Operating system
+.DS_Store
+Thumbs.db
+
+# Local overrides
+docker-compose.override.yml
