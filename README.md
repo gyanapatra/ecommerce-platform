@@ -235,7 +235,7 @@ Refresh-token rotation, logout revocation, and MFA require additional dedicated 
 
 ## Security Practices
 
-Security is a core consideration in this project.
+Security is a core consideration in this project:
 
 - Use JWTs to authenticate protected API requests.
 - Keep signing secrets outside source control.
