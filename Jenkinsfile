@@ -56,6 +56,11 @@ post {
     always {
         junit testResults: '**/target/surefire-reports/TEST-*.xml',
               allowEmptyResults: true
+              
+    archiveArtifacts(
+        artifacts: '**/target/*.jar',
+        allowEmptyArchive: true,
+        fingerprint: true
     }
 
     success {
