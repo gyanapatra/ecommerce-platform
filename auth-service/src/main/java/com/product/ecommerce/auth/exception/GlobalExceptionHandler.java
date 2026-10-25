@@ -10,12 +10,23 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(InvalidCredentialsException.class)
-    public ResponseEntity<Map<String, String>> handleInvalidCredentials(
-            InvalidCredentialsException exception) {
+@ExceptionHandler(InvalidCredentialsException.class)
+public ResponseEntity<Map<String, String>> handleInvalidCredentials(
+        InvalidCredentialsException exception) {
 
-        return ResponseEntity
-                .status(HttpStatus.UNAUTHORIZED)
-                .body(Map.of("message", exception.getMessage()));
-    }
+    return ResponseEntity
+            .status(HttpStatus.UNAUTHORIZED)
+            .body(Map.of("message", exception.getMessage()));
+}
+
+@ExceptionHandler(IllegalArgumentException.class)
+public ResponseEntity<Map<String, String>> handleIllegalArgument(
+        IllegalArgumentException exception) {
+
+    return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(Map.of(
+                    "message", exception.getMessage()));
+}
+
 }

@@ -45,7 +45,7 @@
 		<springdoc.version>2.8.13</springdoc.version>
 
 		<!-- Testing -->
-		<testcontainers.version>1.21.3</testcontainers.version>
+		<testcontainers.version>2.0.5</testcontainers.version>
 
 		<!-- Code quality -->
 		<maven.compiler.release>${java.version}</maven.compiler.release>
@@ -95,27 +95,41 @@
 	<build>
 
 		<pluginManagement>
-
 			<plugins>
-
 				<plugin>
 					<groupId>org.springframework.boot</groupId>
 					<artifactId>spring-boot-maven-plugin</artifactId>
 				</plugin>
-
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-compiler-plugin</artifactId>
 				</plugin>
-
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-surefire-plugin</artifactId>
 				</plugin>
-
 			</plugins>
-
 		</pluginManagement>
+		<plugins>
+			<plugin>
+				<groupId>org.owasp</groupId>
+				<artifactId>dependency-check-maven</artifactId>
+				<version>13.0.0</version>
+				<configuration> <!-- Report-only mode: do not fail the build for
+					CVEs yet -->
+					<failBuildOnCVSS>11</failBuildOnCVSS> <!-- Read the API key
+					from the Jenkins environment -->
+					<nvdApiKeyEnvironmentVariable>NVD_API_KEY</nvdApiKeyEnvironmentVariable> <!--
+					Generate HTML and JSON reports -->
+					<formats>
+						<format>HTML</format>
+						<format>JSON</format>
+					</formats>
+					<outputDirectory>
+						${maven.multiModuleProjectDirectory}/target/dependency-check </outputDirectory>
+				</configuration>
+			</plugin>
+		</plugins>
 
 	</build>
 
