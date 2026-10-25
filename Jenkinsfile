@@ -82,6 +82,13 @@ pipeline {
                 testResults: '**/target/surefire-reports/TEST-*.xml',
                 allowEmptyResults: true
             )
+            
+            recordCoverage(
+	            tools: [[
+	                parser: 'JACOCO',
+	                pattern: 'auth-service/target/site/jacoco/jacoco.xml'
+	            ]]
+        	)
 
             archiveArtifacts(
                 artifacts: 'auth-service/target/auth-service-1.0.0-SNAPSHOT.jar,auth-service/target/auth-service-1.0.0-SNAPSHOT.jar.sha256.txt,auth-service/target/site/jacoco/**',
