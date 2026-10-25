@@ -61,6 +61,7 @@ post {
         artifacts: '**/target/*.jar',
         allowEmptyArchive: true,
         fingerprint: true
+    	)
     }
 
     success {
