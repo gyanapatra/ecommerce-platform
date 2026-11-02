@@ -6,46 +6,42 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.product.ecommerce.auth.user.User;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.UUID;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.product.ecommerce.auth.user.User;
-
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-
 class JwtServiceTest {
 
-private static final String JWT_SECRET = Base64.getEncoder()
-        .encodeToString(
-                "0123456789abcdef0123456789abcdef".getBytes());
+  private static final String JWT_SECRET =
+      Base64.getEncoder().encodeToString("0123456789abcdef0123456789abcdef".getBytes());
 
-private static final Duration ACCESS_TOKEN_TTL = Duration.ofMinutes(15);
+  private static final Duration ACCESS_TOKEN_TTL = Duration.ofMinutes(15);
 
-private JwtService jwtService;
-private User user;
+  private JwtService jwtService;
+  private User user;
 
-@BeforeEach
-void setUp() {
+  @BeforeEach
+  void setUp() {
     jwtService = new JwtService(JWT_SECRET, ACCESS_TOKEN_TTL);
     user = new User("customer@example.com", "hashed-password");
-}
+  }
 
-@Test
-void shouldGenerateValidAccessToken() {
+  @Test
+  void shouldGenerateValidAccessToken() {
     String token = jwtService.generateAccessToken(user);
 
     assertNotNull(token);
     assertFalse(token.isBlank());
     assertTrue(jwtService.isTokenValid(token));
-}
+  }
 
-@Test
-void shouldExtractUserClaimsFromAccessToken() {
+  @Test
+  void shouldExtractUserClaimsFromAccessToken() {
     String token = jwtService.generateAccessToken(user);
 
     Claims claims = jwtService.extractAllClaims(token);
@@ -55,95 +51,84 @@ void shouldExtractUserClaimsFromAccessToken() {
     assertEquals("CUSTOMER", claims.get("role"));
     assertNotNull(claims.getIssuedAt());
     assertNotNull(claims.getExpiration());
-}
+  }
 
-@Test
-void shouldExtractUserIdFromAccessToken() {
+  @Test
+  void shouldExtractUserIdFromAccessToken() {
     String token = jwtService.generateAccessToken(user);
 
     UUID extractedUserId = jwtService.extractUserId(token);
 
     assertEquals(user.getId(), extractedUserId);
-}
+  }
 
-@Test
-void shouldReturnConfiguredAccessTokenTtlInSeconds() {
+  @Test
+  void shouldReturnConfiguredAccessTokenTtlInSeconds() {
     assertEquals(900L, jwtService.getAccessTokenTtlSeconds());
-}
+  }
 
-@Test
-void shouldRejectMalformedToken() {
+  @Test
+  void shouldRejectMalformedToken() {
     assertFalse(jwtService.isTokenValid("not-a-valid-jwt"));
-}
+  }
 
-@Test
-void shouldRejectTokenSignedWithDifferentSecret() {
+  @Test
+  void shouldRejectTokenSignedWithDifferentSecret() {
     String token = jwtService.generateAccessToken(user);
 
-    String differentSecret = Base64.getEncoder()
-            .encodeToString(
-                    "abcdef0123456789abcdef0123456789".getBytes());
+    String differentSecret =
+        Base64.getEncoder().encodeToString("abcdef0123456789abcdef0123456789".getBytes());
 
-    JwtService differentJwtService = new JwtService(
-            differentSecret, ACCESS_TOKEN_TTL);
+    JwtService differentJwtService = new JwtService(differentSecret, ACCESS_TOKEN_TTL);
 
     assertFalse(differentJwtService.isTokenValid(token));
-}
+  }
 
-@Test
-void shouldRejectExpiredToken() {
+  @Test
+  void shouldRejectExpiredToken() {
     Duration expiredTtl = Duration.ofSeconds(-1);
 
-    JwtService expiredJwtService = new JwtService(
-            JWT_SECRET, expiredTtl);
+    JwtService expiredJwtService = new JwtService(JWT_SECRET, expiredTtl);
 
     String expiredToken = expiredJwtService.generateAccessToken(user);
 
     assertFalse(expiredJwtService.isTokenValid(expiredToken));
-}
+  }
 
-@Test
-void shouldRejectSecretShorterThan32Bytes() {
-    String shortSecret = Base64.getEncoder()
-            .encodeToString("short-secret".getBytes());
+  @Test
+  void shouldRejectSecretShorterThan32Bytes() {
+    String shortSecret = Base64.getEncoder().encodeToString("short-secret".getBytes());
 
     assertThrows(
-            IllegalArgumentException.class,
-            () -> new JwtService(shortSecret, ACCESS_TOKEN_TTL));
-}
+        IllegalArgumentException.class, () -> new JwtService(shortSecret, ACCESS_TOKEN_TTL));
+  }
 
-@Test
-void shouldRejectTokenWithInvalidSignatureWhenExtractingClaims() {
+  @Test
+  void shouldRejectTokenWithInvalidSignatureWhenExtractingClaims() {
     String token = jwtService.generateAccessToken(user);
 
-    String differentSecret = Base64.getEncoder()
-            .encodeToString(
-                    "abcdef0123456789abcdef0123456789".getBytes());
+    String differentSecret =
+        Base64.getEncoder().encodeToString("abcdef0123456789abcdef0123456789".getBytes());
 
-    JwtService differentJwtService = new JwtService(
-            differentSecret, ACCESS_TOKEN_TTL);
+    JwtService differentJwtService = new JwtService(differentSecret, ACCESS_TOKEN_TTL);
 
     assertThrows(
-            io.jsonwebtoken.JwtException.class,
-            () -> differentJwtService.extractAllClaims(token));
-}
+        io.jsonwebtoken.JwtException.class, () -> differentJwtService.extractAllClaims(token));
+  }
 
-@Test
-void shouldRejectTokenWithMissingSubject() {
-    String tokenWithoutSubject = Jwts.builder()
+  @Test
+  void shouldRejectTokenWithMissingSubject() {
+    String tokenWithoutSubject =
+        Jwts.builder()
             .claim("email", user.getEmail())
             .claim("role", user.getRole())
             .issuedAt(new java.util.Date())
-            .expiration(
-                    java.util.Date.from(
-                            java.time.Instant.now().plusSeconds(300)))
+            .expiration(java.util.Date.from(java.time.Instant.now().plusSeconds(300)))
             .signWith(
-                    io.jsonwebtoken.security.Keys.hmacShaKeyFor(
-                            Base64.getDecoder().decode(JWT_SECRET)),
-                    Jwts.SIG.HS256)
+                io.jsonwebtoken.security.Keys.hmacShaKeyFor(Base64.getDecoder().decode(JWT_SECRET)),
+                Jwts.SIG.HS256)
             .compact();
 
     assertFalse(jwtService.isTokenValid(tokenWithoutSubject));
-}
-
+  }
 }
