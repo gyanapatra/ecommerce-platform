@@ -1,10 +1,10 @@
 # E-Commerce Platform
 
-A scalable, secure, and cloud-ready e-commerce platform built using Java 21, Spring Boot, and a microservices architecture.
+A scalable, secure, and cloud-ready e-commerce platform built using Java 21, Spring Boot, Spring Cloud Gateway, and a microservices architecture.
 
-The project demonstrates production-oriented backend engineering practices, including centralized dependency management, JWT-based authentication, refresh-token management, database migrations, API security, automated testing, and cloud-native deployment.
+The project demonstrates production-oriented backend engineering practices, including centralized dependency management, JWT-based authentication, refresh-token management, database migrations, API gateway security, automated testing, and cloud-native development.
 
-> **Project status:** Active development. The foundational Maven structure and core Auth Service functionality are implemented. The Auth Service integration tests run against PostgreSQL using Testcontainers, and the full Maven verification currently passes with 14 tests.
+> **Project status:** Active development. The Maven multi-module foundation, Auth Service, and API Gateway are implemented. Auth Service registration, login, refresh-token functionality, logout, and protected-user functionality are available. The API Gateway routes authentication requests to Auth Service and validates JWTs reactively. Four Gateway JWT unit tests have passed. Registration and login through the Gateway, plus valid/unauthorized protected-request scenarios, have also been manually verified.
 
 ## Key Features
 
@@ -12,13 +12,15 @@ The project demonstrates production-oriented backend engineering practices, incl
 - **User registration and login:** Authentication endpoints for user access.
 - **Refresh-token management:** Persistent refresh tokens with expiration handling.
 - **Logout endpoint:** Logout functionality is implemented; dedicated integration coverage for revocation is still planned.
-- **Protected APIs:** Spring Security integration with JWT authentication filters.
+- **API Gateway:** Spring Cloud Gateway Server WebFlux routes authentication requests to Auth Service.
+- **Reactive JWT validation:** Gateway validates JWT signatures and expiration and establishes authenticated user identity and role authorities.
+- **Protected APIs:** Spring Security integration with JWT authentication filters in Auth Service and reactive authentication at the Gateway.
 - **Global exception handling:** Authentication and request errors are mapped to HTTP responses.
 - **Database versioning:** Flyway migrations manage database schema changes.
 - **Centralized dependency management:** Maven parent project and internal BOM support consistent dependency versions.
 - **Shared components:** A common module for reusable application components.
-- **Automated testing:** JWT unit tests and PostgreSQL-backed Auth Service integration tests.
-- **Cloud-ready architecture:** Designed to support containerization and deployment to AWS.
+- **Automated testing:** JWT unit tests, Gateway JWT validation tests, and PostgreSQL-backed Auth Service integration tests.
+- **Cloud-ready architecture:** Designed to support containerization and deployment to cloud infrastructure.
 
 ## Technology Stack
 
@@ -26,17 +28,18 @@ The project demonstrates production-oriented backend engineering practices, incl
 |---|---|
 | Language | Java 21 |
 | Backend | Spring Boot 3.5.6, Spring Security |
-| Architecture | Microservices |
-| Authentication | JWT access tokens, refresh tokens |
+| API Gateway | Spring Cloud Gateway Server WebFlux 4.3.0, Spring WebFlux, Project Reactor |
+| Architecture | Maven multi-module microservices |
+| Authentication | JWT access tokens, refresh tokens, HS256 |
 | Database | PostgreSQL |
 | Persistence | Spring Data JPA, Hibernate |
 | Database migrations | Flyway |
 | Build | Maven |
-| Testing | JUnit, Spring Boot Test, MockMvc, Testcontainers 2.0.5 |
-| API security | Spring Security, JWT authentication filters |
+| Testing | JUnit 5, Spring Boot Test, MockMvc, Reactor Test, Testcontainers 2.0.5 |
+| API security | Spring Security, JJWT 0.12.6, reactive JWT authentication |
 | Planned messaging | Apache Kafka |
 | Planned caching | Redis |
-| Planned deployment | Docker, Kubernetes, AWS EKS |
+| Planned deployment | Docker, Kubernetes |
 | Planned frontend | Angular |
 
 Technologies marked as planned will be integrated as development progresses.
@@ -45,6 +48,17 @@ Technologies marked as planned will be integrated as development progresses.
 
 ```text
 ecommerce-platform/
+├── api-gateway/
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── java/com/product/ecommerce/gateway/
+│   │   │   │   ├── config/
+│   │   │   │   └── filter/
+│   │   │   └── resources/
+│   │   │       └── application.yml
+│   │   └── test/
+│   │       └── java/com/product/ecommerce/gateway/filter/
+│   └── pom.xml
 ├── auth-service/
 │   ├── src/
 │   │   ├── main/
@@ -74,9 +88,13 @@ The structure above illustrates the current project organization. Additional dir
 
 ### Core Components
 
+**API Gateway**
+
+Provides the external entry point for routed API requests. It currently routes `/api/v1/auth/**` requests to Auth Service and validates bearer JWTs using Spring Security WebFlux before forwarding protected requests.
+
 **Auth Service**
 
-Responsible for user registration, authentication, JWT issuance, refresh-token management, logout, and protected API access.
+Responsible for user registration, authentication, JWT issuance, refresh-token management, logout, and protected current-user access.
 
 **Common Module**
 
@@ -86,33 +104,80 @@ Provides reusable components shared across application modules.
 
 Centralizes dependency version management to improve consistency and simplify dependency upgrades.
 
-## Authentication Flow
+## Authentication and Gateway Flow
 
-The current authentication design uses access tokens and refresh tokens.
+The current request flow uses the API Gateway as the entry point for client authentication requests.
+
+```text
+Client / Postman
+       |
+       | HTTP request
+       v
+API Gateway :8090
+       |
+       | Route: /api/v1/auth/**
+       | Reactive JWT validation for protected requests
+       v
+Auth Service :8081
+       |
+       | Authentication and business logic
+       v
+PostgreSQL :5432
+```
+
+The login flow is:
 
 ```text
 Client
   |
-  | 1. Submit login credentials
+  | 1. Submit login credentials through Gateway
   v
-Auth Service
+API Gateway :8090
   |
-  | 2. Validate user credentials
-  | 3. Generate access token
-  | 4. Issue refresh token
+  | 2. Forward public login request
+  v
+Auth Service :8081
+  |
+  | 3. Validate credentials
+  | 4. Generate access token and issue refresh token
   v
 Client
   |
-  | 5. Call protected API with access token
+  | 5. Send access token as Bearer token
   v
-JWT Authentication Filter
+API Gateway :8090
   |
-  | 6. Validate token and establish authentication
+  | 6. Verify JWT signature and expiration
+  | 7. Establish reactive authentication and authorities
   v
-Protected API
+Auth Service / Protected API
 ```
 
-When the access token expires, the client can use the refresh token to request a new access token through the Auth Service refresh flow.
+The Gateway and Auth Service must use the same JWT signing secret for the current HS256 implementation. Keep the secret outside source control and configure it independently in each application's runtime environment.
+
+When the access token expires, the client can use the refresh token with the Auth Service refresh flow. Refresh-token rotation and logout revocation still require dedicated automated integration coverage.
+
+## Local Runtime Ports
+
+| Component | Default local port | Purpose |
+|---|---:|---|
+| PostgreSQL | 5432 | Auth Service persistence |
+| Auth Service | 8081 | Authentication endpoints and protected user endpoint |
+| API Gateway | 8090 | Client-facing gateway and route forwarding |
+
+The API Gateway health endpoint is available at:
+
+```text
+http://localhost:8090/actuator/health
+```
+
+The current Gateway route forwards:
+
+```text
+/api/v1/auth/**
+```
+
+to the Auth Service at `http://localhost:8081` by default. These values can be overridden using `AUTH_SERVICE_URL` and `SERVER_PORT`.
 
 ## Getting Started
 
@@ -151,7 +216,7 @@ Replace the example password with a secure local password.
 
 Configure the environment variables required by `auth-service/src/main/resources/application.yml`.
 
-Typical settings include:
+Typical Auth Service settings include:
 
 ```text
 DB_URL=jdbc:postgresql://localhost:5432/ecommerce_auth
@@ -159,6 +224,15 @@ DB_USERNAME=ecommerce_user
 DB_PASSWORD=your-local-database-password
 JWT_SECRET=your-base64-encoded-secret
 ```
+
+The API Gateway also requires the same `JWT_SECRET` value. Its `application.yml` maps that environment variable to `app.jwt.secret`. The Gateway can additionally use:
+
+```text
+AUTH_SERVICE_URL=http://localhost:8081
+SERVER_PORT=8090
+```
+
+Generate a cryptographically secure, Base64-encoded secret containing at least 32 bytes before Base64 encoding for the current HS256 configuration. Configure the same value for Auth Service and API Gateway. Do not print secrets in shared logs or screenshots.
 
 Use the exact property names and formats expected by the application configuration.
 
@@ -172,7 +246,13 @@ From the repository root:
 mvn clean verify
 ```
 
-The Auth Service's current verification run includes unit tests and PostgreSQL-backed integration tests. Testcontainers requires a working Docker environment and may download the configured PostgreSQL image on the first run.
+The Auth Service integration tests use PostgreSQL through Testcontainers. Testcontainers requires a working Docker environment and may download the configured PostgreSQL image on the first run.
+
+To run the API Gateway unit tests independently:
+
+```bash
+mvn test -pl api-gateway
+```
 
 If the repository includes a Maven Wrapper, you can use:
 
@@ -190,17 +270,27 @@ Linux/macOS:
 
 ### 5. Start the Auth Service
 
-Run the application from your IDE or use Maven from the Auth Service module directory:
+Run the application from your IDE or use Maven from the repository root:
 
 ```bash
-mvn spring-boot:run
+mvn spring-boot:run -pl auth-service
 ```
 
-Ensure PostgreSQL is running and the required environment variables are configured before starting the application. The application port is determined by the current Spring Boot configuration (currently 8081 by default).
+Ensure PostgreSQL is running and the required Auth Service environment variables are configured before starting the application. The default application port is 8081.
+
+### 6. Start the API Gateway
+
+In a separate IDE run configuration or terminal, configure `JWT_SECRET` with the same value used by Auth Service, then run:
+
+```bash
+mvn spring-boot:run -pl api-gateway
+```
+
+The default Gateway port is 8090. Keep both Auth Service and API Gateway running.
 
 ## API Overview
 
-The Auth Service currently includes registration, login, refresh-token functionality, logout, and protected-user functionality.
+The Auth Service currently includes registration, login, refresh-token functionality, logout, and protected-user functionality. The API Gateway currently routes the `/api/v1/auth/**` path to Auth Service.
 
 | Capability | Purpose |
 |---|---|
@@ -210,12 +300,16 @@ The Auth Service currently includes registration, login, refresh-token functiona
 | Current user | Retrieve information about the authenticated user |
 | Refresh tokens | Support access-token renewal |
 | Logout | Provide an endpoint to log out and invalidate a refresh token |
+| Gateway routing | Forward authentication API requests to Auth Service |
+| Gateway JWT validation | Verify bearer-token signature and expiration and establish user identity and role authorities |
 
 Refer to the controller implementations for the exact HTTP methods, endpoint paths, request bodies, and response formats.
 
 ## Automated Test Results
 
-**Latest verified Auth Service test run: 14 tests passed, 0 failures, 0 errors.**
+### Auth Service
+
+**Latest recorded Auth Service verification: 14 tests passed, 0 failures, 0 errors.**
 
 | Test suite | Tests | Result |
 |---|---:|---|
@@ -225,13 +319,42 @@ Refer to the controller implementations for the exact HTTP methods, endpoint pat
 
 The integration tests use Spring Boot Test and MockMvc with a PostgreSQL container managed by Testcontainers. They cover successful registration, duplicate-email rejection, successful login with token responses, and invalid-password handling.
 
-The executable Spring Boot JAR was successfully packaged during the verification run:
+The executable Spring Boot JAR was successfully packaged during that verification run:
 
 ```text
 auth-service/target/auth-service-1.0.0-SNAPSHOT.jar
 ```
 
-Refresh-token rotation, logout revocation, and MFA require additional dedicated automated test coverage.
+### API Gateway
+
+**Latest recorded Gateway test run: 4 tests passed, 0 failures, 0 errors.**
+
+| Test scenario | Expected behavior | Result |
+|---|---|---|
+| Valid JWT | Authentication succeeds and user identity/authority are created | Passed |
+| Expired JWT | Authentication is rejected | Passed |
+| Invalid JWT | Authentication is rejected | Passed |
+| Tampered JWT payload | Signature verification rejects the modified token | Passed |
+| **Total** | | **4 passed** |
+
+The Gateway tests use JUnit 5, Reactor Test, and JJWT with an isolated test signing key. They do not require PostgreSQL or running application services.
+
+### Manual Gateway Verification
+
+The following scenarios have also been manually verified through Postman using port 8090:
+
+| Scenario | Observed result |
+|---|---|
+| Gateway health endpoint | `UP` |
+| User registration through Gateway | Successful |
+| User login through Gateway | Successful |
+| Protected current-user request with valid access token | `200 OK` |
+| Protected current-user request without a token | `401 Unauthorized` |
+| Protected current-user request with an invalid token | `401 Unauthorized` |
+
+The manual checks and module-specific test runs are recorded separately; a new full-reactor `mvn clean verify` result should be recorded after it is run.
+
+Refresh-token rotation, old-token reuse rejection, logout revocation, and post-logout refresh rejection still require dedicated integration test coverage.
 
 ## Security Practices
 
@@ -239,13 +362,17 @@ Security is a core consideration in this project:
 
 - Use JWTs to authenticate protected API requests.
 - Keep signing secrets outside source control.
+- Configure the same signing secret in Auth Service and API Gateway while using the current HS256 design.
 - Store passwords using an appropriate one-way password hashing algorithm.
 - Apply expiration policies to access and refresh tokens.
 - Validate refresh tokens before issuing replacement access tokens.
 - Use HTTPS in deployed environments.
 - Avoid logging passwords, tokens, and other sensitive information.
-- Apply authorization rules to protected endpoints.
+- Apply authorization rules to protected endpoints and service operations.
 - Use database migrations to manage schema changes consistently.
+- Keep the Gateway's reactive security implementation separate from the Auth Service's Servlet security filter implementation.
+
+The current HS256 design requires the Gateway to possess the shared signing secret. An asymmetric signing design (Auth Service signs with a private key; Gateway verifies with a public key) can be evaluated as a later hardening step.
 
 Additional security hardening, automated security tests, and production deployment controls will be developed as the project evolves.
 
@@ -268,14 +395,24 @@ Additional security hardening, automated security tests, and production deployme
 - [x] Add PostgreSQL-backed integration tests using Testcontainers.
 - [x] Verify the Auth Service with Maven (`clean verify`).
 
-### Phase 2 — Authentication Hardening
+### Phase 2 — API Gateway and Authentication Hardening
 
+- [x] Add the API Gateway Maven module.
+- [x] Configure Spring Cloud Gateway WebFlux.
+- [x] Route `/api/v1/auth/**` requests to Auth Service.
+- [x] Configure reactive JWT authentication at the Gateway.
+- [x] Validate JWT signature, expiration, subject, and role claims.
+- [x] Add unit tests for valid, expired, invalid, and tampered JWTs.
+- [x] Manually verify registration and login through the Gateway.
+- [x] Manually verify valid-token access and 401 responses for missing and invalid tokens.
 - [ ] Add dedicated integration tests for refresh-token rotation and reuse/revocation scenarios.
 - [ ] Add dedicated integration tests for logout and refresh-token invalidation.
+- [ ] Test refresh and logout flows end to end through the Gateway.
+- [ ] Review authentication and authorization edge cases.
+- [ ] Evaluate asymmetric JWT signing and verification.
 - [ ] Integrate Redis for refresh-token storage and revocation, after validating the storage design.
 - [ ] Implement and test TOTP-based multi-factor authentication (MFA).
 - [ ] Add API documentation with OpenAPI.
-- [ ] Review authentication and authorization edge cases.
 
 ### Phase 3 — E-Commerce Microservices
 
@@ -291,7 +428,6 @@ Additional security hardening, automated security tests, and production deployme
 
 - [ ] Integrate Apache Kafka.
 - [ ] Introduce Redis caching where appropriate.
-- [ ] Add an API Gateway.
 - [ ] Implement resilient inter-service communication.
 - [ ] Add distributed tracing and centralized observability.
 
@@ -299,9 +435,10 @@ Additional security hardening, automated security tests, and production deployme
 
 - [ ] Containerize services using Docker.
 - [ ] Enhance CI/CD pipelines to run unit and integration tests.
-- [ ] Deploy services to AWS EKS.
+- [ ] Evaluate local Kubernetes deployment before any cloud deployment.
 - [ ] Add monitoring, metrics, and alerting.
 - [ ] Implement deployment and rollback strategies.
+- [ ] Evaluate AWS deployment only if it can be done within an explicitly approved budget.
 
 ### Phase 6 — Frontend
 
@@ -321,7 +458,7 @@ The project emphasizes:
 - Resilient distributed communication.
 - Automated testing and CI/CD.
 - Observability and operational readiness.
-- Cloud-native deployment practices.
+- Cloud-native deployment practices with cost controls.
 
 ## Contributing
 
@@ -332,7 +469,7 @@ Changes should be developed incrementally, tested, and committed using descripti
 Example:
 
 ```bash
-git commit -m "test(auth): add PostgreSQL integration tests"
+git commit -m "test(gateway): add JWT validation tests"
 ```
 
 ## License
