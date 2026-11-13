@@ -1,0 +1,3 @@
+$kind: collection
+description: Verify both API Gateway instances are healthy and that an access token issued through Gateway 1 (8090) is accepted by Gateway 2 (8091).
+order: 3000

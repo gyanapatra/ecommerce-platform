@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{baseUrl}}/actuator/health"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Gateway 1 health returns 200', function () { pm.response.to.have.status(200); });
+      pm.test('Gateway 1 status is UP', function () { pm.expect(pm.response.json().status).to.eql('UP'); });
+    language: text/javascript
+order: 1000

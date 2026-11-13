@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/auth/refresh"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "refreshToken": "{{tokenB}}"
+    }
+scripts:
+  - type: afterResponse
+    code: pm.test('Token B is rejected after family revocation', function () { pm.response.to.have.status(401); });
+    language: text/javascript
+order: 4000

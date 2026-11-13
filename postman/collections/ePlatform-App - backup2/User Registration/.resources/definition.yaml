@@ -1,0 +1,3 @@
+$kind: collection
+description: Registers a local test account using the selected Postman environment email and password. Use a new email address; registration fails when that email already exists.
+order: 5000

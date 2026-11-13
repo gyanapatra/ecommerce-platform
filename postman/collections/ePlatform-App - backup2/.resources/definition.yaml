@@ -1,0 +1,16 @@
+$kind: collection
+description: End-to-end Postman checks for Auth refresh-token rotation, logout, API Gateway instances, and Product Catalog CRUD/soft-delete. Set the email and password collection variables to a local test account before running authenticated flows.
+variables:
+  baseUrl: http://localhost:8090
+  email: mike@eplatform.com
+  password: CHANGE_ME
+  tokenA: ""
+  logoutToken: ""
+  baseUrl-8091: http://localhost:8091
+  gatewayAccessToken: ""
+  productAccessToken: ""
+  productServiceUrl: http://localhost:8082
+  registeredUserId: ""
+  registeredEmail: ""
+  tokenB: ""
+  productSku: ""

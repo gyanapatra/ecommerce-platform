@@ -1,0 +1,22 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/auth/login"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "{{email}}",
+      "password": "{{password}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Login returns 200', function () { pm.response.to.have.status(200); });
+      const body = pm.response.json();
+      pm.test('Login response contains refreshToken', function () { pm.expect(body.refreshToken).to.be.a('string').and.not.empty; });
+      pm.collectionVariables.set('tokenA', body.refreshToken);
+      pm.collectionVariables.unset('tokenB');
+    language: text/javascript
+order: 1000

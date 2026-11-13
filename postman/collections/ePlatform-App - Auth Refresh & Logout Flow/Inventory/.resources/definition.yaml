@@ -1,0 +1,3 @@
+$kind: collection
+description: Run in order. Creates an isolated product ID, adds stock, tests reservations, idempotent retries, insufficient-stock rejection, commit, release, and final counts. Requires a valid local account and both Gateway and Inventory Service running.
+order: 6000

@@ -1,0 +1,6 @@
+$kind: http-request
+url: "{{baseUrl-8091}}/actuator/health"
+method: GET
+headers:
+  Content-Type: application/json
+order: 2000

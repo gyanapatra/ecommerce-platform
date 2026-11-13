@@ -1,0 +1,23 @@
+$kind: collection
+description: End-to-end tests for Auth refresh-token rotation, logout, API Gateway instances, Product Catalog CRUD/soft-delete, and Inventory stock adjustments/reservations. Set email and password in a local Postman environment.
+variables:
+  baseUrl: http://localhost:8090
+  email: mike@eplatform.com
+  password: CHANGE_ME
+  tokenA: ""
+  logoutToken: ""
+  baseUrl-8091: http://localhost:8091
+  gatewayAccessToken: ""
+  productAccessToken: ""
+  productId: ""
+  productSku: ""
+  productServiceUrl: http://localhost:8082
+  registeredUserId: ""
+  registeredEmail: ""
+  inventoryAccessToken: ""
+  inventoryServiceUrl: http://localhost:8083
+  inventoryProductId: ""
+  inventoryAdjustmentId: ""
+  inventoryReservationId: ""
+  inventoryFailedReservationId: ""
+  inventoryReleaseReservationId: ""

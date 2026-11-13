@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/inventory/{{inventoryProductId}}"
+method: GET
+auth:
+  type: bearer
+  credentials:
+    token: "{{inventoryAccessToken}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Inventory lookup returns 200', function () { pm.response.to.have.status(200); });
+      const data = pm.response.json().data;
+      pm.expect(data.onHand).to.eql(10);
+      pm.expect(data.reserved).to.eql(0);
+      pm.expect(data.available).to.eql(10);
+    language: text/javascript
+order: 4000

@@ -1,0 +1,1674 @@
+{
+  "info": {
+    "_postman_id": "b6b83d7f-4800-4a87-8078-a8a39376f09a",
+    "name": "ePlatform-App - Auth Refresh & Logout Flow",
+    "description": "End-to-end tests for Auth refresh-token rotation, logout, API Gateway instances, Product Catalog CRUD/soft-delete, and Inventory stock adjustments/reservations. Set email and password in a local Postman environment.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "59064590",
+    "_collection_link": "https://go.postman.co/collection/59064590-b6b83d7f-4800-4a87-8078-a8a39376f09a?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Auth Refresh & logout flow",
+      "item": [
+        {
+          "name": "01 - Login for rotation test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login returns 200', function () { pm.response.to.have.status(200); });\nconst body = pm.response.json();\npm.test('Login response contains refreshToken', function () { pm.expect(body.refreshToken).to.be.a('string').and.not.empty; });\npm.collectionVariables.set('tokenA', body.refreshToken);\npm.collectionVariables.unset('tokenB');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "02 - Refresh Token A (rotate to Token B)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('First refresh returns 200', function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Rotation returns a new refresh token', function () {",
+                  "  pm.expect(body.refreshToken).to.be.a('string').and.not.empty;",
+                  "  pm.expect(body.refreshToken).to.not.equal(pm.collectionVariables.get('tokenA'));",
+                  "});",
+                  "pm.collectionVariables.set('tokenB', body.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{tokenA}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "03 - Reuse old Token A (must revoke family)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reusing rotated Token A returns 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{tokenA}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "04 - Use Token B after reuse (must be revoked)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Token B is rejected after family revocation', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{tokenB}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "05 - Login for logout test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Second login returns 200', function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Login returns refresh token for logout', function () { pm.expect(body.refreshToken).to.be.a('string').and.not.empty; });",
+                  "pm.collectionVariables.set('logoutToken', body.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "06 - Logout (revoke token family)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Logout returns 204 No Content', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{logoutToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "07 - Refresh after logout (must be rejected)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Refresh after logout returns 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{logoutToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "APi-Gateway",
+      "item": [
+        {
+          "name": "api-gateway-8090",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "api-gateway-8091",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl-8091}}/actuator/health",
+              "host": [
+                "{{baseUrl-8091}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Gateway Instance Verification",
+      "item": [
+        {
+          "name": "01 - Gateway 1 health (8090)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Gateway 1 health returns 200', function () { pm.response.to.have.status(200); });\npm.test('Gateway 1 status is UP', function () { pm.expect(pm.response.json().status).to.eql('UP'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "02 - Gateway 2 health (8091)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Gateway 2 health returns 200', function () { pm.response.to.have.status(200); });\npm.test('Gateway 2 status is UP', function () { pm.expect(pm.response.json().status).to.eql('UP'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl-8091}}/actuator/health",
+              "host": [
+                "{{baseUrl-8091}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "03 - Login through Gateway 1 (capture access token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login through Gateway 1 returns 200', function () { pm.response.to.have.status(200); });\nconst body = pm.response.json();\npm.test('Login response contains accessToken', function () { pm.expect(body.accessToken).to.be.a('string').and.not.empty; });\npm.collectionVariables.set('gatewayAccessToken', body.accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "04 - Validate Gateway 1 token through Gateway 2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Gateway 2 accepts token issued through Gateway 1', function () { pm.response.to.have.status(200); });\npm.test('Current-user response is returned', function () { pm.expect(pm.response.json()).to.be.an('object'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{gatewayAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl-8091}}/api/v1/auth/me",
+              "host": [
+                "{{baseUrl-8091}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Verify both API Gateway instances are healthy and that an access token issued through Gateway 1 (8090) is accepted by Gateway 2 (8091)."
+    },
+    {
+      "name": "Product Catalog",
+      "description": "Run in order. Uses a fresh SKU each run, obtains a JWT through Auth, exercises catalog CRUD and soft deletion through the Gateway, and checks Product Service health directly.",
+      "item": [
+        {
+          "name": "00 - Login and capture access token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login returns 200', function () { pm.response.to.have.status(200); });\nconst body = pm.response.json();\npm.test('Login contains an access token', function () { pm.expect(body.accessToken).to.be.a('string').and.not.empty; });\npm.collectionVariables.set('productAccessToken', body.accessToken);\npm.collectionVariables.unset('productId');\npm.collectionVariables.unset('productSku');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "01 - Product Service health (direct)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product Service health returns 200', function () { pm.response.to.have.status(200); });\npm.expect(pm.response.json().status).to.eql('UP');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{productServiceUrl}}/actuator/health",
+              "host": [
+                "{{productServiceUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "02 - Create product",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('productSku', 'POSTMAN-' + Date.now().toString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product creation returns 201', function () { pm.response.to.have.status(201); });\nconst body = pm.response.json();\npm.test('Response uses the shared success envelope', function () { pm.expect(body.success).to.eql(true); });\npm.test('Created product has an id, expected SKU, and active status', function () {\n  pm.expect(body.data.id).to.be.a('string').and.not.empty;\n  pm.expect(body.data.sku).to.eql(pm.collectionVariables.get('productSku'));\n  pm.expect(body.data.active).to.eql(true);\n});\npm.collectionVariables.set('productId', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{productAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"{{productSku}}\",\n  \"name\": \"Postman Catalog Test\",\n  \"category\": \"Postman Tests\",\n  \"description\": \"Created by the Postman collection\",\n  \"price\": 19.99\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "03 - Get created product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product lookup returns 200', function () { pm.response.to.have.status(200); });\nconst body = pm.response.json();\npm.expect(body.data.id).to.eql(pm.collectionVariables.get('productId'));\npm.expect(body.data.sku).to.eql(pm.collectionVariables.get('productSku'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{productAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products",
+                "{{productId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "04 - List products by category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Category listing returns 200', function () { pm.response.to.have.status(200); });\nconst body = pm.response.json();\npm.test('Category listing includes the created product', function () {\n  pm.expect(body.data.some(function (product) { return product.id === pm.collectionVariables.get('productId'); })).to.eql(true);\n});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{productAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products?category=Postman%20Tests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "Postman Tests"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "05 - Update product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product update returns 200', function () { pm.response.to.have.status(200); });\nconst body = pm.response.json();\npm.expect(body.data.id).to.eql(pm.collectionVariables.get('productId'));\npm.expect(body.data.name).to.eql('Postman Catalog Test Updated');\npm.expect(Number(body.data.price)).to.eql(24.99);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{productAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"{{productSku}}\",\n  \"name\": \"Postman Catalog Test Updated\",\n  \"category\": \"Postman Tests\",\n  \"description\": \"Updated by the Postman collection\",\n  \"price\": 24.99,\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products",
+                "{{productId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "06 - Soft-delete product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Soft delete returns 204', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{productAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products",
+                "{{productId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "07 - Confirm deleted product is inactive",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Soft-deleted product remains retrievable', function () { pm.response.to.have.status(200); });\nconst body = pm.response.json();\npm.expect(body.data.id).to.eql(pm.collectionVariables.get('productId'));\npm.expect(body.data.active).to.eql(false);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{productAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products/{{productId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products",
+                "{{productId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "08 - Confirm deleted product is hidden from listing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Active category listing returns 200', function () { pm.response.to.have.status(200); });\nconst body = pm.response.json();\npm.test('Soft-deleted product is omitted from active listings', function () {\n  pm.expect(body.data.some(function (product) { return product.id === pm.collectionVariables.get('productId'); })).to.eql(false);\n});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{productAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products?category=Postman%20Tests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products"
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "Postman Tests"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "User Registration",
+      "description": "Registers a local test account using the selected Postman environment email and password. Use a new email address; registration fails when that email already exists.",
+      "item": [
+        {
+          "name": "01 - Register local test user",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Registration returns 201 Created', function () { pm.response.to.have.status(201); });\nconst body = pm.response.json();\npm.test('Registration returns a user id and requested email', function () {\n  pm.expect(body.userId).to.be.a('string').and.not.empty;\n  pm.expect(body.email).to.eql(pm.variables.get('email'));\n});\npm.test('Registration returns the supplied name fields', function () {\n  pm.expect(body.firstName).to.eql('Postman');\n  pm.expect(body.lastName).to.eql('Tester');\n});\npm.collectionVariables.set('registeredUserId', body.userId);\npm.collectionVariables.set('registeredEmail', body.email);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"firstName\": \"Postman\",\n  \"lastName\": \"Tester\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "description": "Run in order. Creates an isolated product ID, adds stock, tests reservations, idempotent retries, insufficient-stock rejection, commit, release, and final counts. Requires a valid local account and both Gateway and Inventory Service running.",
+      "item": [
+        {
+          "name": "00 - Login and capture access token",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.unset('inventoryProductId');\npm.collectionVariables.unset('inventoryAdjustmentId');\npm.collectionVariables.unset('inventoryReservationId');\npm.collectionVariables.unset('inventoryReleaseReservationId');\npm.collectionVariables.unset('inventoryFailedReservationId');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Inventory test login returns 200', function () { pm.response.to.have.status(200); });\nconst body = pm.response.json();\npm.expect(body.accessToken).to.be.a('string').and.not.empty;\npm.collectionVariables.set('inventoryAccessToken', body.accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "01 - Inventory Service health (direct)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Inventory Service health returns 200', function () { pm.response.to.have.status(200); });\npm.expect(pm.response.json().status).to.eql('UP');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{inventoryServiceUrl}}/actuator/health",
+              "host": [
+                "{{inventoryServiceUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "02 - Add initial stock",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('inventoryProductId', pm.variables.replaceIn('{{$guid}}'));\npm.collectionVariables.set('inventoryAdjustmentId', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Stock adjustment returns 200', function () { pm.response.to.have.status(200); });\nconst data = pm.response.json().data;\npm.expect(data.productId).to.eql(pm.collectionVariables.get('inventoryProductId'));\npm.expect(data.onHand).to.eql(10);\npm.expect(data.reserved).to.eql(0);\npm.expect(data.available).to.eql(10);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{inventoryAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adjustmentId\": \"{{inventoryAdjustmentId}}\",\n  \"quantityDelta\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inventory/{{inventoryProductId}}/adjustments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "{{inventoryProductId}}",
+                "adjustments"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "03 - Get initial stock",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Inventory lookup returns 200', function () { pm.response.to.have.status(200); });\nconst data = pm.response.json().data;\npm.expect(data.onHand).to.eql(10);\npm.expect(data.reserved).to.eql(0);\npm.expect(data.available).to.eql(10);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{inventoryAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inventory/{{inventoryProductId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "{{inventoryProductId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "04 - Reserve 3 units",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('inventoryReservationId', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reservation returns 201', function () { pm.response.to.have.status(201); });\nconst data = pm.response.json().data;\npm.expect(data.reservationId).to.eql(pm.collectionVariables.get('inventoryReservationId'));\npm.expect(data.status).to.eql('ACTIVE');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{inventoryAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservationId\": \"{{inventoryReservationId}}\",\n  \"quantity\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inventory/{{inventoryProductId}}/reservations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "{{inventoryProductId}}",
+                "reservations"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "05 - Repeat reservation idempotently",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Repeating the same reservation is idempotent', function () { pm.response.to.have.status(201); });\npm.expect(pm.response.json().data.reservationId).to.eql(pm.collectionVariables.get('inventoryReservationId'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{inventoryAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservationId\": \"{{inventoryReservationId}}\",\n  \"quantity\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inventory/{{inventoryProductId}}/reservations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "{{inventoryProductId}}",
+                "reservations"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "06 - Reject reservation beyond available stock",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('inventoryFailedReservationId', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reservation exceeding available stock returns 409', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{inventoryAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservationId\": \"{{inventoryFailedReservationId}}\",\n  \"quantity\": 99\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inventory/{{inventoryProductId}}/reservations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "{{inventoryProductId}}",
+                "reservations"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "07 - Commit reservation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Committing reservation returns 200', function () { pm.response.to.have.status(200); });\nconst data = pm.response.json().data;\npm.expect(data.onHand).to.eql(7);\npm.expect(data.reserved).to.eql(0);\npm.expect(data.available).to.eql(7);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{inventoryAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inventory/{{inventoryProductId}}/reservations/{{inventoryReservationId}}/commit",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "{{inventoryProductId}}",
+                "reservations",
+                "{{inventoryReservationId}}",
+                "commit"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "08 - Reserve 2 units for release",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('inventoryReleaseReservationId', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Second reservation returns 201', function () { pm.response.to.have.status(201); });\npm.expect(pm.response.json().data.status).to.eql('ACTIVE');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{inventoryAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reservationId\": \"{{inventoryReleaseReservationId}}\",\n  \"quantity\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inventory/{{inventoryProductId}}/reservations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "{{inventoryProductId}}",
+                "reservations"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "09 - Release reservation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Release returns 200', function () { pm.response.to.have.status(200); });\nconst data = pm.response.json().data;\npm.expect(data.onHand).to.eql(7);\npm.expect(data.reserved).to.eql(0);\npm.expect(data.available).to.eql(7);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{inventoryAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inventory/{{inventoryProductId}}/reservations/{{inventoryReleaseReservationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "{{inventoryProductId}}",
+                "reservations",
+                "{{inventoryReleaseReservationId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "10 - Verify final stock",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Final inventory lookup returns 200', function () { pm.response.to.have.status(200); });\nconst data = pm.response.json().data;\npm.expect(data.onHand).to.eql(7);\npm.expect(data.reserved).to.eql(0);\npm.expect(data.available).to.eql(7);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{inventoryAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inventory/{{inventoryProductId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "{{inventoryProductId}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8090"
+    },
+    {
+      "key": "email",
+      "value": "mike@eplatform.com"
+    },
+    {
+      "key": "password",
+      "value": "CHANGE_ME"
+    },
+    {
+      "key": "tokenA",
+      "value": ""
+    },
+    {
+      "key": "logoutToken",
+      "value": ""
+    },
+    {
+      "key": "baseUrl-8091",
+      "value": "http://localhost:8091"
+    },
+    {
+      "key": "gatewayAccessToken",
+      "value": ""
+    },
+    {
+      "key": "productAccessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "productId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "productSku",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "productServiceUrl",
+      "value": "http://localhost:8082",
+      "type": "string"
+    },
+    {
+      "key": "registeredUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "registeredEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inventoryAccessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inventoryProductId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inventoryAdjustmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inventoryReservationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inventoryReleaseReservationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inventoryFailedReservationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inventoryServiceUrl",
+      "value": "http://localhost:8083",
+      "type": "string"
+    }
+  ]
+}

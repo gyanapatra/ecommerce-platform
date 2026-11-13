@@ -1,0 +1,30 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/products/{{productId}}"
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "sku": "{{productSku}}",
+      "name": "Postman Catalog Test Updated",
+      "category": "Postman Tests",
+      "description": "Updated by the Postman collection",
+      "price": 24.99,
+      "active": true
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{productAccessToken}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Product update returns 200', function () { pm.response.to.have.status(200); });
+      const body = pm.response.json();
+      pm.expect(body.data.id).to.eql(pm.collectionVariables.get('productId'));
+      pm.expect(body.data.name).to.eql('Postman Catalog Test Updated');
+      pm.expect(Number(body.data.price)).to.eql(24.99);
+    language: text/javascript
+order: 6000

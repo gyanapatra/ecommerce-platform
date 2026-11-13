@@ -1,0 +1,24 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/inventory/{{inventoryProductId}}/reservations"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "reservationId": "{{inventoryFailedReservationId}}",
+      "quantity": 99
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{inventoryAccessToken}}"
+scripts:
+  - type: beforeRequest
+    code: pm.collectionVariables.set('inventoryFailedReservationId', pm.variables.replaceIn('{{$guid}}'));
+    language: text/javascript
+  - type: afterResponse
+    code: pm.test('Reservation exceeding available stock returns 409', function () { pm.response.to.have.status(409); });
+    language: text/javascript
+order: 7000

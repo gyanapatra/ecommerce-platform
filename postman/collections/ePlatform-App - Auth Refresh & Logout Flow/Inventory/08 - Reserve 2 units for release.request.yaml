@@ -1,0 +1,26 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/inventory/{{inventoryProductId}}/reservations"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "reservationId": "{{inventoryReleaseReservationId}}",
+      "quantity": 2
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{inventoryAccessToken}}"
+scripts:
+  - type: beforeRequest
+    code: pm.collectionVariables.set('inventoryReleaseReservationId', pm.variables.replaceIn('{{$guid}}'));
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Second reservation returns 201', function () { pm.response.to.have.status(201); });
+      pm.expect(pm.response.json().data.status).to.eql('ACTIVE');
+    language: text/javascript
+order: 9000

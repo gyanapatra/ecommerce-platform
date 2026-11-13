@@ -1,0 +1,36 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/products"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "sku": "{{productSku}}",
+      "name": "Earphone",
+      "category": "Electronics",
+      "description": "Wireless headphone with bluetooth",
+      "price": 19.99
+    }
+auth:
+  type: bearer
+  credentials:
+    token: "{{productAccessToken}}"
+scripts:
+  - type: beforeRequest
+    code: pm.collectionVariables.set('productSku', 'POSTMAN-' + Date.now().toString());
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('Product creation returns 201', function () { pm.response.to.have.status(201); });
+      const body = pm.response.json();
+      pm.test('Response uses the shared success envelope', function () { pm.expect(body.success).to.eql(true); });
+      pm.test('Created product has an id, expected SKU, and active status', function () {
+        pm.expect(body.data.id).to.be.a('string').and.not.empty;
+        pm.expect(body.data.sku).to.eql(pm.collectionVariables.get('productSku'));
+        pm.expect(body.data.active).to.eql(true);
+      });
+      pm.collectionVariables.set('productId', body.data.id);
+    language: text/javascript
+order: 3000

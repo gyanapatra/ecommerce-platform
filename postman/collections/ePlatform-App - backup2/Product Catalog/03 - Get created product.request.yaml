@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/products/{{productId}}"
+method: GET
+auth:
+  type: bearer
+  credentials:
+    token: "{{productAccessToken}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Product lookup returns 200', function () { pm.response.to.have.status(200); });
+      const body = pm.response.json();
+      pm.expect(body.data.id).to.eql(pm.collectionVariables.get('productId'));
+      pm.expect(body.data.sku).to.eql(pm.collectionVariables.get('productSku'));
+    language: text/javascript
+order: 4000

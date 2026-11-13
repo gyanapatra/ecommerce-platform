@@ -1,0 +1,3 @@
+$kind: collection
+description: Run in order. Uses a fresh SKU each run, obtains a JWT through Auth, exercises catalog CRUD and soft deletion through the Gateway, and checks Product Service health directly.
+order: 4000

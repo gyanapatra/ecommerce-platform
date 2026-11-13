@@ -1,0 +1,10 @@
+workspace:
+  id: c671c023-fb74-4db7-8345-971a9e85ff00
+
+# Each entry here maps a local resource to one or more corresponding objects in Postman Cloud
+
+cloudResources:
+  collections:
+    ../postman/collections/ePlatform-App - backup: e00c3cf5-5e93-47a5-a473-41e2e92de618
+    ../postman/collections/ePlatform-App - backup2: 59064590-99d72444-ce29-42d1-b61e-4ab8cef0ee3c
+    ../postman/collections/ePlatform-App - Auth Refresh & Logout Flow: 6b5209be-c75f-43d0-b271-3533168f7fb2
