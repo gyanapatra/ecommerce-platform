@@ -66,12 +66,15 @@
 		<module>common</module>
 		<module>auth-service</module>
 		<module>api-gateway</module>
+		<module>product-service</module>
+		<module>inventory-service</module>
 
 		<!--
 		
         <module>common</module>
         <module>auth-service</module>
         <module>api-gateway</module>
+		<module>product-service</module>
         <module>user-service</module>
         <module>product-service</module>
         <module>inventory-service</module>
