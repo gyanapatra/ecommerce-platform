@@ -110,4 +110,10 @@ public class RefreshToken {
       this.replacedByTokenId = replacementTokenId;
     }
   }
+
+  public void revoke() {
+    if (revokedAt == null) {
+      this.revokedAt = Instant.now();
+    }
+  }
 }

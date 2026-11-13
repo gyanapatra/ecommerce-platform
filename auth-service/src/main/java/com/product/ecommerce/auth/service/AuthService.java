@@ -95,4 +95,27 @@ public class AuthService {
         user.getId(),
         user.getEmail());
   }
+
+  public LoginResponse refresh(String rawRefreshToken) {
+
+    RefreshTokenService.RotatedRefreshToken rotatedToken =
+        refreshTokenService.rotateRefreshToken(rawRefreshToken);
+
+    User user = rotatedToken.user();
+
+    String accessToken = jwtService.generateAccessToken(user);
+
+    return new LoginResponse(
+        accessToken,
+        rotatedToken.refreshToken(),
+        "Bearer",
+        jwtService.getAccessTokenTtlSeconds(),
+        user.getId(),
+        user.getEmail());
+  }
+
+  public void logout(String rawRefreshToken) {
+
+    refreshTokenService.revokeRefreshToken(rawRefreshToken);
+  }
 }

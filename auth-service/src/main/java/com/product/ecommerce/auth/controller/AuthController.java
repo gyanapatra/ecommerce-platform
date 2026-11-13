@@ -9,6 +9,8 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.product.ecommerce.auth.user.dto.RefreshTokenRequest;
+import com.product.ecommerce.auth.user.dto.LogoutRequest;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -32,5 +34,19 @@ public class AuthController {
   public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
 
     return ResponseEntity.ok(authService.login(request));
+  }
+
+  @PostMapping("/refresh")
+  public ResponseEntity<LoginResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+
+    return ResponseEntity.ok(authService.refresh(request.refreshToken()));
+  }
+
+  @PostMapping("/logout")
+  public ResponseEntity<Void> logout(@Valid @RequestBody LogoutRequest request) {
+
+    authService.logout(request.refreshToken());
+
+    return ResponseEntity.noContent().build();
   }
 }

@@ -31,25 +31,23 @@ public class SecurityConfig {
 
     return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
         .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
-        .authorizeExchange(
-            exchange ->
-                exchange
-                    .pathMatchers(
-                        "/api/v1/auth/register",
-                        "/api/v1/auth/login",
-                        "/api/v1/auth/refresh",
-                        "/actuator/health")
-                    .permitAll()
-                    .anyExchange()
-                    .authenticated())
+        .authorizeExchange(exchange ->
+            exchange
+                .pathMatchers(
+                    "/api/v1/auth/register",
+                    "/api/v1/auth/login",
+                    "/api/v1/auth/refresh",
+                    "/api/v1/auth/logout",
+                    "/actuator/health")
+                .permitAll()
+                .anyExchange()
+                .authenticated())
         .addFilterAt(jwtFilter, SecurityWebFiltersOrder.AUTHENTICATION)
-        .exceptionHandling(
-            exception ->
-                exception.authenticationEntryPoint(
-                    (exchange, ex) -> {
-                      exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-                      return exchange.getResponse().setComplete();
-                    }))
+        .exceptionHandling(exception ->
+            exception.authenticationEntryPoint((exchange, ex) -> {
+              exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+              return exchange.getResponse().setComplete();
+            }))
         .build();
   }
 
