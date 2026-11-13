@@ -4,7 +4,7 @@ A scalable, secure, and cloud-ready e-commerce platform built using Java 21, Spr
 
 The project demonstrates production-oriented backend engineering practices, including centralized dependency management, JWT-based authentication, refresh-token management, database migrations, API gateway security, automated testing, and cloud-native development.
 
-> **Project status:** Active development. The Maven multi-module foundation, Auth Service, and API Gateway are implemented. Auth Service registration, login, refresh-token functionality, logout, and protected-user functionality are available. The API Gateway routes authentication requests to Auth Service and validates JWTs reactively. Four Gateway JWT unit tests have passed. Registration and login through the Gateway, plus valid/unauthorized protected-request scenarios, have also been manually verified.
+> **Project status:** Active development. The Maven multi-module foundation, Auth Service, API Gateway, Product Catalog Service, and Inventory Service are implemented. Auth Service registration, login, refresh-token functionality, logout, and protected-user functionality are available. The API Gateway routes authentication requests to Auth Service and validates JWTs reactively. Four Gateway JWT unit tests have passed. Registration and login through the Gateway, plus valid/unauthorized protected-request scenarios, have also been manually verified.
 
 ## Key Features
 
@@ -12,7 +12,8 @@ The project demonstrates production-oriented backend engineering practices, incl
 - **User registration and login:** Authentication endpoints for user access.
 - **Refresh-token management:** Persistent refresh tokens with expiration handling.
 - **Logout endpoint:** Logout functionality is implemented; dedicated integration coverage for revocation is still planned.
-- **API Gateway:** Spring Cloud Gateway Server WebFlux routes authentication requests to Auth Service.
+- **API Gateway:** Spring Cloud Gateway Server WebFlux routes authentication, product, and inventory requests to their services.
+- **Inventory Service:** Maintains per-product on-hand stock, reserves quantities, and supports idempotent adjustments, commits, and releases.
 - **Reactive JWT validation:** Gateway validates JWT signatures and expiration and establishes authenticated user identity and role authorities.
 - **Protected APIs:** Spring Security integration with JWT authentication filters in Auth Service and reactive authentication at the Gateway.
 - **Global exception handling:** Authentication and request errors are mapped to HTTP responses.
@@ -164,6 +165,8 @@ When the access token expires, the client can use the refresh token with the Aut
 | PostgreSQL | 5432 | Auth Service persistence |
 | Auth Service | 8081 | Authentication endpoints and protected user endpoint |
 | API Gateway | 8090 | Client-facing gateway and route forwarding |
+| Product Catalog Service | 8082 | Product catalog APIs |
+| Inventory Service | 8083 | Stock and reservation APIs |
 
 The API Gateway health endpoint is available at:
 
@@ -288,6 +291,32 @@ mvn spring-boot:run -pl api-gateway
 
 The default Gateway port is 8090. Keep both Auth Service and API Gateway running.
 
+## Product Catalog Service
+
+The catalog service owns product data and its Flyway-managed PostgreSQL schema. Create the `ecommerce_product` database, configure `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD`, then start it with `mvn spring-boot:run -pl product-service` (default port `8082`). The Gateway forwards `/api/v1/products/**` to it; configure `PRODUCT_SERVICE_URL` to override the local URL. Catalog requests through the Gateway require a valid JWT.
+
+| Method | Path | Behavior |
+|---|---|---|
+| `POST` | `/api/v1/products` | Create a product |
+| `GET` | `/api/v1/products` | List active products; optional `category` filter |
+| `GET` | `/api/v1/products/{id}` | Retrieve a product |
+| `PUT` | `/api/v1/products/{id}` | Update a product |
+| `DELETE` | `/api/v1/products/{id}` | Soft-delete a product |
+
+SKU must be unique; price must be greater than zero. OpenAPI UI is available at `/swagger-ui.html` when the service is accessed directly.
+## Inventory Service
+
+Inventory Service owns stock counts for product IDs, independently of the Product Catalog database. Create the ecommerce_inventory database, configure DB_URL, DB_USERNAME, and DB_PASSWORD, then run `mvn spring-boot:run -pl inventory-service` (default port 8083). Flyway creates the schema. The Gateway forwards `/api/v1/inventory/**` to it at `INVENTORY_SERVICE_URL` (default `http://localhost:8083`); API requests through the Gateway require a valid JWT.
+
+| Method | Path | Behavior |
+|---|---|---|
+| `GET` | `/api/v1/inventory/{productId}` | Retrieve on-hand, reserved, and available quantities |
+| `POST` | `/api/v1/inventory/{productId}/adjustments` | Add or subtract stock using an adjustment ID |
+| `POST` | `/api/v1/inventory/{productId}/reservations` | Reserve available stock using a client-generated reservation ID |
+| `DELETE` | `/api/v1/inventory/{productId}/reservations/{reservationId}` | Release an active reservation |
+| `POST` | `/api/v1/inventory/{productId}/reservations/{reservationId}/commit` | Commit a reservation and consume stock |
+
+Adjustment IDs and reservation IDs make retries idempotent. Stock rows use database locking so concurrent reservations cannot consume more than the available quantity. Initial stock is added through a positive adjustment. Reservation quantity must be positive; an insufficient-stock attempt returns `409 Conflict`.
 ## API Overview
 
 The Auth Service currently includes registration, login, refresh-token functionality, logout, and protected-user functionality. The API Gateway currently routes the `/api/v1/auth/**` path to Auth Service.
@@ -417,11 +446,11 @@ Additional security hardening, automated security tests, and production deployme
 ### Phase 3 — E-Commerce Microservices
 
 - [ ] User and Member Service
-- [ ] Product Catalog Service
+- [x] Product Catalog Service
 - [ ] Shopping Cart Service
 - [ ] Order Service
 - [ ] Payment Service
-- [ ] Inventory Service
+- [x] Inventory Service
 - [ ] Notification Service
 
 ### Phase 4 — Distributed Architecture
