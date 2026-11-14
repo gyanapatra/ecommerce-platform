@@ -27,6 +27,10 @@ spring:
               uri: ${CART_SERVICE_URL:http://localhost:8084}
               predicates:
                 - Path=/api/v1/cart/**
+            - id: order-service
+              uri: ${ORDER_SERVICE_URL:http://localhost:8085}
+              predicates:
+                - Path=/api/v1/orders/**
 app:
   jwt:
     secret: ${JWT_SECRET}

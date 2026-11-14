@@ -4,7 +4,7 @@ A scalable, secure, and cloud-ready e-commerce platform built using Java 21, Spr
 
 The project demonstrates production-oriented backend engineering practices, including centralized dependency management, JWT-based authentication, refresh-token management, database migrations, API gateway security, automated testing, and cloud-native development.
 
-> **Project status:** Active development. The Maven multi-module foundation, Auth Service, API Gateway, Product Catalog Service, Inventory Service, and Shopping Cart Service are implemented. Auth Service registration, login, refresh-token functionality, logout, and protected-user functionality are available. The API Gateway routes authentication requests to Auth Service and validates JWTs reactively. Four Gateway JWT unit tests have passed. Registration and login through the Gateway, plus valid/unauthorized protected-request scenarios, have also been manually verified.
+> **Project status:** Active development. The Maven multi-module foundation, Auth Service, API Gateway, Product Catalog Service, Inventory Service, Shopping Cart Service, and Order Service are implemented. Auth Service registration, login, refresh-token functionality, logout, and protected-user functionality are available. The API Gateway routes authentication requests to Auth Service and validates JWTs reactively. Four Gateway JWT unit tests have passed. Registration and login through the Gateway, plus valid/unauthorized protected-request scenarios, have also been manually verified.
 
 ## Key Features
 
@@ -12,9 +12,10 @@ The project demonstrates production-oriented backend engineering practices, incl
 - **User registration and login:** Authentication endpoints for user access.
 - **Refresh-token management:** Persistent refresh tokens with expiration handling.
 - **Logout endpoint:** Logout functionality is implemented; dedicated integration coverage for revocation is still planned.
-- **API Gateway:** Spring Cloud Gateway Server WebFlux routes authentication, product, inventory, and cart requests to their services.
+- **API Gateway:** Spring Cloud Gateway Server WebFlux routes authentication, product, inventory, cart, and order requests to their services.
 - **Inventory Service:** Maintains per-product on-hand stock, reserves quantities, and supports idempotent adjustments, commits, and releases.
 - **Shopping Cart Service:** Stores product quantities for each authenticated customer and validates JWTs independently of the Gateway.
+- **Order Service:** Checks out the authenticated customer's cart, snapshots catalog prices, and coordinates inventory reservations.
 - **Reactive JWT validation:** Gateway validates JWT signatures and expiration and establishes authenticated user identity and role authorities.
 - **Protected APIs:** Spring Security integration with JWT authentication filters in Auth Service and reactive authentication at the Gateway.
 - **Global exception handling:** Authentication and request errors are mapped to HTTP responses.
@@ -82,6 +83,18 @@ ecommerce-platform/
 │   ├── src/main/java/com/product/ecommerce/cart/
 │   ├── src/main/resources/db/migration/
 │   └── pom.xml
+├── inventory-service/
+│   ├── src/main/java/com/product/ecommerce/inventory/
+│   ├── src/main/resources/db/migration/
+│   └── pom.xml
+├── order-service/
+│   ├── src/main/java/com/product/ecommerce/order/
+│   ├── src/main/resources/db/migration/
+│   └── pom.xml
+├── product-service/
+│   ├── src/main/java/com/product/ecommerce/product/
+│   ├── src/main/resources/db/migration/
+│   └── pom.xml
 ├── common/
 │   └── pom.xml
 ├── ecommerce-bom/
@@ -96,7 +109,7 @@ The structure above illustrates the current project organization. Additional dir
 
 **API Gateway**
 
-Provides the external entry point for routed API requests. It currently routes `/api/v1/auth/**` requests to Auth Service and validates bearer JWTs using Spring Security WebFlux before forwarding protected requests.
+Provides the external entry point for routed API requests. It routes Auth, Product, Inventory, Cart, and Order APIs to their services and validates bearer JWTs using Spring Security WebFlux before forwarding protected requests.
 
 **Auth Service**
 
@@ -173,6 +186,7 @@ When the access token expires, the client can use the refresh token with the Aut
 | Product Catalog Service | 8082 | Product catalog APIs |
 | Inventory Service | 8083 | Stock and reservation APIs |
 | Shopping Cart Service | 8084 | Authenticated customer carts |
+| Order Service | 8085 | Checkout, order history, and inventory reservations |
 
 The API Gateway health endpoint is available at:
 
@@ -336,10 +350,26 @@ Shopping Cart Service stores product UUIDs and quantities in a cart owned by the
 | `DELETE` | `/api/v1/cart/items/{productId}` | Remove an item |
 | `DELETE` | `/api/v1/cart/items` | Clear the cart |
 
-The service currently stores product IDs and quantities only. Product existence checks and price calculation are deferred to later catalog and order integration.
+The service stores product IDs and quantities. At checkout, Order Service validates active products, snapshots their prices, and requests stock reservations from Inventory Service.
+
+## Order Service
+
+Order Service creates orders from the authenticated customer cart. It loads each product from Product Catalog, snapshots its current name and price, reserves the requested quantity in Inventory, and clears the cart after all reservations succeed. Checkout requires a UUID `Idempotency-Key` header so retries do not create duplicate orders. If one reservation fails, the service releases reservations already created. If a downstream service is temporarily unavailable, retry checkout with the same key to resume the saved processing order.
+
+Create the `ecommerce_order` PostgreSQL database, configure `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, and the same `JWT_SECRET` used by Auth Service, then run `mvn spring-boot:run -pl order-service` (default port `8085`). Cart, Product, and Inventory URLs can be overridden with `CART_SERVICE_URL`, `PRODUCT_SERVICE_URL`, and `INVENTORY_SERVICE_URL`. The Gateway forwards `/api/v1/orders/**` to `ORDER_SERVICE_URL` (default `http://localhost:8085`).
+
+| Method | Path | Behavior |
+|---|---|---|
+| `POST` | `/api/v1/orders` | Create an order from the current cart; requires `Idempotency-Key` |
+| `GET` | `/api/v1/orders` | List orders for the authenticated user |
+| `GET` | `/api/v1/orders/{orderId}` | Retrieve an owned order |
+| `POST` | `/api/v1/orders/{orderId}/cancel` | Cancel a placed order and release its inventory reservations |
+
+Orders snapshot product names, quantities, unit prices, and totals. Payment processing is not connected yet; placed orders keep stock reserved until cancellation or later payment integration.
+
 ## API Overview
 
-The Auth Service currently includes registration, login, refresh-token functionality, logout, and protected-user functionality. The API Gateway routes `/api/v1/auth/**`, `/api/v1/products/**`, `/api/v1/inventory/**`, and `/api/v1/cart/**` to their corresponding services.
+The Auth Service currently includes registration, login, refresh-token functionality, logout, and protected-user functionality. The API Gateway routes `/api/v1/auth/**`, `/api/v1/products/**`, `/api/v1/inventory/**`, `/api/v1/cart/**`, and `/api/v1/orders/**` to their corresponding services.
 
 | Capability | Purpose |
 |---|---|
@@ -349,7 +379,7 @@ The Auth Service currently includes registration, login, refresh-token functiona
 | Current user | Retrieve information about the authenticated user |
 | Refresh tokens | Support access-token renewal |
 | Logout | Provide an endpoint to log out and invalidate a refresh token |
-| Gateway routing | Forward authentication API requests to Auth Service |
+| Gateway routing | Forward Auth, Product, Inventory, Cart, and Order API requests to their services |
 | Gateway JWT validation | Verify bearer-token signature and expiration and establish user identity and role authorities |
 
 Refer to the controller implementations for the exact HTTP methods, endpoint paths, request bodies, and response formats.
@@ -387,6 +417,10 @@ auth-service/target/auth-service-1.0.0-SNAPSHOT.jar
 | **Total** | | **4 passed** |
 
 The Gateway tests use JUnit 5, Reactor Test, and JJWT with an isolated test signing key. They do not require PostgreSQL or running application services.
+
+### Order Service
+
+Latest Order Service verification: 8 tests passed, 0 failures, 0 errors, including PostgreSQL Testcontainers migration and persistence coverage. The tests also cover cart checkout, price snapshots, inventory reservations, idempotent retries, reservation compensation, cancellation, and JWT validation.
 
 ### Manual Gateway Verification
 
@@ -468,7 +502,7 @@ Additional security hardening, automated security tests, and production deployme
 - [ ] User and Member Service
 - [x] Product Catalog Service
 - [x] Shopping Cart Service
-- [ ] Order Service
+- [x] Order Service
 - [ ] Payment Service
 - [x] Inventory Service
 - [ ] Notification Service

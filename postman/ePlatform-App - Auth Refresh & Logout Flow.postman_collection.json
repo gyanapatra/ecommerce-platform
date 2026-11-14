@@ -2065,6 +2065,736 @@
           "response": []
         }
       ]
+    },
+    {
+      "description": "Run sequentially. Creates a real Product and Inventory row, checks out the cart, verifies idempotency and cancellation, then checks insufficient-stock handling.",
+      "item": [
+        {
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.unset('orderAccessToken');\npm.collectionVariables.unset('orderProductId');\npm.collectionVariables.unset('orderProductSku');\npm.collectionVariables.unset('orderInventoryAdjustmentId');\npm.collectionVariables.unset('orderIdempotencyKey');\npm.collectionVariables.unset('orderFailedIdempotencyKey');\npm.collectionVariables.unset('orderId');"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "prerequest"
+            },
+            {
+              "script": {
+                "exec": [
+                  "pm.test('Order test login returns 200', function () { pm.response.to.have.status(200); });\nconst body = pm.response.json();\npm.expect(body.accessToken).to.be.a('string').and.not.empty;\npm.collectionVariables.set('orderAccessToken', body.accessToken);"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ],
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ],
+              "raw": "{{baseUrl}}/api/v1/auth/login"
+            },
+            "body": {
+              "raw": "{ \"email\": \"{{email}}\", \"password\": \"{{password}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "mode": "raw"
+            }
+          },
+          "name": "00 - Login and capture access token"
+        },
+        {
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "pm.test('Order Service health is UP', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().status).to.eql('UP'); });"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ],
+          "request": {
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{orderServiceUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ],
+              "raw": "{{orderServiceUrl}}/actuator/health"
+            }
+          },
+          "name": "01 - Order Service health (direct)"
+        },
+        {
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('orderProductSku', 'ORDER-POSTMAN-' + Date.now().toString());"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "prerequest"
+            },
+            {
+              "script": {
+                "exec": [
+                  "pm.test('Order test product is created', function () { pm.response.to.have.status(201); });\nconst data = pm.response.json().data;\npm.expect(data.active).to.eql(true);\npm.expect(data.sku).to.eql(pm.collectionVariables.get('orderProductSku'));\npm.collectionVariables.set('orderProductId', data.id);"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ],
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "products"
+              ],
+              "raw": "{{baseUrl}}/api/v1/products"
+            },
+            "auth": {
+              "bearer": [
+                {
+                  "value": "{{orderAccessToken}}",
+                  "key": "token",
+                  "type": "string"
+                }
+              ],
+              "type": "bearer"
+            },
+            "body": {
+              "raw": "{ \"sku\": \"{{orderProductSku}}\", \"name\": \"Order Test Product\", \"category\": \"Postman Orders\", \"description\": \"Created by the order flow\", \"price\": 19.99 }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "mode": "raw"
+            }
+          },
+          "name": "02 - Create product for checkout"
+        },
+        {
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "pm.collectionVariables.set('orderInventoryAdjustmentId', pm.variables.replaceIn('{{$guid}}'));"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "prerequest"
+            },
+            {
+              "script": {
+                "exec": [
+                  "pm.test('Initial order stock is added', function () { pm.response.to.have.status(200); });\nconst data = pm.response.json().data;\npm.expect(data.productId).to.eql(pm.collectionVariables.get('orderProductId'));\npm.expect(data.available).to.eql(10);"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ],
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "{{orderProductId}}",
+                "adjustments"
+              ],
+              "raw": "{{baseUrl}}/api/v1/inventory/{{orderProductId}}/adjustments"
+            },
+            "auth": {
+              "bearer": [
+                {
+                  "value": "{{orderAccessToken}}",
+                  "key": "token",
+                  "type": "string"
+                }
+              ],
+              "type": "bearer"
+            },
+            "body": {
+              "raw": "{ \"adjustmentId\": \"{{orderInventoryAdjustmentId}}\", \"quantityDelta\": 10 }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "mode": "raw"
+            }
+          },
+          "name": "03 - Add stock for checkout"
+        },
+        {
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "pm.test('Product is added to cart', function () { pm.response.to.have.status(200); });\nconst data = pm.response.json().data;\npm.expect(data.items).to.have.length(1);\npm.expect(data.items[0].productId).to.eql(pm.collectionVariables.get('orderProductId'));\npm.expect(data.items[0].quantity).to.eql(2);"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ],
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cart",
+                "items"
+              ],
+              "raw": "{{baseUrl}}/api/v1/cart/items"
+            },
+            "auth": {
+              "bearer": [
+                {
+                  "value": "{{orderAccessToken}}",
+                  "key": "token",
+                  "type": "string"
+                }
+              ],
+              "type": "bearer"
+            },
+            "body": {
+              "raw": "{ \"productId\": \"{{orderProductId}}\", \"quantity\": 2 }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "mode": "raw"
+            }
+          },
+          "name": "04 - Add product to cart"
+        },
+        {
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "if (!pm.collectionVariables.get('orderIdempotencyKey')) {\n  pm.collectionVariables.set('orderIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));\n}"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "prerequest"
+            },
+            {
+              "script": {
+                "exec": [
+                  "pm.test('Checkout places an order', function () { pm.response.to.have.status(201); });\nconst data = pm.response.json().data;\npm.expect(data.status).to.eql('PLACED');\npm.expect(data.items).to.have.length(1);\npm.expect(data.items[0].quantity).to.eql(2);\npm.expect(data.totalAmount).to.eql(39.98);\npm.collectionVariables.set('orderId', data.id);"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ],
+          "request": {
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{orderIdempotencyKey}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ],
+              "raw": "{{baseUrl}}/api/v1/orders"
+            },
+            "auth": {
+              "bearer": [
+                {
+                  "value": "{{orderAccessToken}}",
+                  "key": "token",
+                  "type": "string"
+                }
+              ],
+              "type": "bearer"
+            }
+          },
+          "name": "05 - Checkout cart"
+        },
+        {
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "pm.test('Checkout retry returns the same order', function () { pm.response.to.have.status(201); });\nconst data = pm.response.json().data;\npm.expect(data.id).to.eql(pm.collectionVariables.get('orderId'));\npm.expect(data.status).to.eql('PLACED');"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ],
+          "request": {
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{orderIdempotencyKey}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ],
+              "raw": "{{baseUrl}}/api/v1/orders"
+            },
+            "auth": {
+              "bearer": [
+                {
+                  "value": "{{orderAccessToken}}",
+                  "key": "token",
+                  "type": "string"
+                }
+              ],
+              "type": "bearer"
+            }
+          },
+          "name": "06 - Retry checkout idempotently"
+        },
+        {
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "pm.test('Order history contains the new order', function () { pm.response.to.have.status(200); });\nconst data = pm.response.json().data;\npm.expect(data.some(order => order.id === pm.collectionVariables.get('orderId'))).to.eql(true);"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ],
+          "request": {
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ],
+              "raw": "{{baseUrl}}/api/v1/orders"
+            },
+            "auth": {
+              "bearer": [
+                {
+                  "value": "{{orderAccessToken}}",
+                  "key": "token",
+                  "type": "string"
+                }
+              ],
+              "type": "bearer"
+            }
+          },
+          "name": "07 - List my orders"
+        },
+        {
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "pm.test('Order details belong to the logged-in customer', function () { pm.response.to.have.status(200); });\nconst data = pm.response.json().data;\npm.expect(data.id).to.eql(pm.collectionVariables.get('orderId'));\npm.expect(data.userId).to.be.a('string').and.not.empty;"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ],
+          "request": {
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{orderId}}"
+              ],
+              "raw": "{{baseUrl}}/api/v1/orders/{{orderId}}"
+            },
+            "auth": {
+              "bearer": [
+                {
+                  "value": "{{orderAccessToken}}",
+                  "key": "token",
+                  "type": "string"
+                }
+              ],
+              "type": "bearer"
+            }
+          },
+          "name": "08 - Get order details"
+        },
+        {
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "pm.test('Placed order is cancelled', function () { pm.response.to.have.status(200); });\npm.expect(pm.response.json().data.status).to.eql('CANCELLED');"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ],
+          "request": {
+            "header": [],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "{{orderId}}",
+                "cancel"
+              ],
+              "raw": "{{baseUrl}}/api/v1/orders/{{orderId}}/cancel"
+            },
+            "auth": {
+              "bearer": [
+                {
+                  "value": "{{orderAccessToken}}",
+                  "key": "token",
+                  "type": "string"
+                }
+              ],
+              "type": "bearer"
+            }
+          },
+          "name": "09 - Cancel placed order"
+        },
+        {
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "pm.test('Oversized cart quantity is accepted before checkout', function () { pm.response.to.have.status(200); });\npm.expect(pm.response.json().data.items[0].quantity).to.eql(11);"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ],
+          "request": {
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cart",
+                "items"
+              ],
+              "raw": "{{baseUrl}}/api/v1/cart/items"
+            },
+            "auth": {
+              "bearer": [
+                {
+                  "value": "{{orderAccessToken}}",
+                  "key": "token",
+                  "type": "string"
+                }
+              ],
+              "type": "bearer"
+            },
+            "body": {
+              "raw": "{ \"productId\": \"{{orderProductId}}\", \"quantity\": 11 }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "mode": "raw"
+            }
+          },
+          "name": "10 - Add unavailable quantity to cart"
+        },
+        {
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "if (!pm.collectionVariables.get('orderFailedIdempotencyKey')) {\n  pm.collectionVariables.set('orderFailedIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));\n}"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "prerequest"
+            },
+            {
+              "script": {
+                "exec": [
+                  "pm.test('Checkout rejects unavailable stock', function () { pm.response.to.have.status(409); });\npm.expect(pm.response.json().message).to.include('stock');"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ],
+          "request": {
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{orderFailedIdempotencyKey}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ],
+              "raw": "{{baseUrl}}/api/v1/orders"
+            },
+            "auth": {
+              "bearer": [
+                {
+                  "value": "{{orderAccessToken}}",
+                  "key": "token",
+                  "type": "string"
+                }
+              ],
+              "type": "bearer"
+            }
+          },
+          "name": "11 - Reject checkout with insufficient stock"
+        },
+        {
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "pm.test('Rejected checkout retry remains rejected', function () { pm.response.to.have.status(409); });"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ],
+          "request": {
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{orderFailedIdempotencyKey}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ],
+              "raw": "{{baseUrl}}/api/v1/orders"
+            },
+            "auth": {
+              "bearer": [
+                {
+                  "value": "{{orderAccessToken}}",
+                  "key": "token",
+                  "type": "string"
+                }
+              ],
+              "type": "bearer"
+            }
+          },
+          "name": "12 - Retry rejected checkout"
+        },
+        {
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "pm.test('Failed checkout leaves stock available', function () { pm.response.to.have.status(200); });\nconst data = pm.response.json().data;\npm.expect(data.available).to.eql(10);\npm.expect(data.reserved).to.eql(0);"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ],
+          "request": {
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "inventory",
+                "{{orderProductId}}"
+              ],
+              "raw": "{{baseUrl}}/api/v1/inventory/{{orderProductId}}"
+            },
+            "auth": {
+              "bearer": [
+                {
+                  "value": "{{orderAccessToken}}",
+                  "key": "token",
+                  "type": "string"
+                }
+              ],
+              "type": "bearer"
+            }
+          },
+          "name": "13 - Verify stock after cancellation and rejection"
+        },
+        {
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "exec": [
+                  "pm.test('Failed checkout cart is cleared for cleanup', function () { pm.response.to.have.status(200); });\npm.expect(pm.response.json().data.items).to.have.length(0);"
+                ],
+                "type": "text/javascript"
+              },
+              "listen": "test"
+            }
+          ],
+          "request": {
+            "header": [],
+            "method": "DELETE",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cart",
+                "items"
+              ],
+              "raw": "{{baseUrl}}/api/v1/cart/items"
+            },
+            "auth": {
+              "bearer": [
+                {
+                  "value": "{{orderAccessToken}}",
+                  "key": "token",
+                  "type": "string"
+                }
+              ],
+              "type": "bearer"
+            }
+          },
+          "name": "14 - Clear cart after failed checkout"
+        }
+      ],
+      "name": "Order Management"
     }
   ],
   "variable": [
@@ -2179,6 +2909,46 @@
     {
       "key": "cartServiceUrl",
       "value": "http://localhost:8084",
+      "type": "string"
+    },
+    {
+      "value": "",
+      "key": "orderAccessToken",
+      "type": "string"
+    },
+    {
+      "value": "",
+      "key": "orderProductId",
+      "type": "string"
+    },
+    {
+      "value": "",
+      "key": "orderProductSku",
+      "type": "string"
+    },
+    {
+      "value": "",
+      "key": "orderInventoryAdjustmentId",
+      "type": "string"
+    },
+    {
+      "value": "",
+      "key": "orderIdempotencyKey",
+      "type": "string"
+    },
+    {
+      "value": "",
+      "key": "orderFailedIdempotencyKey",
+      "type": "string"
+    },
+    {
+      "value": "",
+      "key": "orderId",
+      "type": "string"
+    },
+    {
+      "value": "http://localhost:8085",
+      "key": "orderServiceUrl",
       "type": "string"
     }
   ]
