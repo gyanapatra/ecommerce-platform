@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "b6b83d7f-4800-4a87-8078-a8a39376f09a",
     "name": "ePlatform-App - Auth Refresh & Logout Flow",
-    "description": "End-to-end tests for Auth refresh-token rotation, logout, API Gateway instances, Product Catalog CRUD/soft-delete, and Inventory stock adjustments/reservations. Set email and password in a local Postman environment.",
+    "description": "End-to-end tests for Auth refresh-token rotation, logout, Gateway instances, Product Catalog, Inventory stock and reservations, and authenticated Shopping Cart operations. Set email and password in a local Postman environment.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "59064590",
     "_collection_link": "https://go.postman.co/collection/59064590-b6b83d7f-4800-4a87-8078-a8a39376f09a?source=collection_link"
@@ -1574,6 +1574,497 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Shopping Cart",
+      "description": "Run in order. Logs in, checks Cart Service health, verifies item add/increment/set/remove/clear operations. Product IDs are generated for the local cart test.",
+      "item": [
+        {
+          "name": "00 - Login and capture access token",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.unset('cartProductId');\npm.collectionVariables.unset('cartSecondProductId');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cart test login returns 200', function () { pm.response.to.have.status(200); });\nconst body = pm.response.json();\npm.expect(body.accessToken).to.be.a('string').and.not.empty;\npm.collectionVariables.set('cartAccessToken', body.accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "01 - Cart Service health (direct)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cart Service health returns 200', function () { pm.response.to.have.status(200); });\npm.expect(pm.response.json().status).to.eql('UP');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{cartServiceUrl}}/actuator/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "02 - Add item",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('cartProductId', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Adding a cart item returns 200', function () { pm.response.to.have.status(200); });\nconst data = pm.response.json().data;\npm.test('Cart contains the requested product and quantity', function () {\n  pm.expect(data.items).to.have.length(1);\n  pm.expect(data.items[0].productId).to.eql(pm.collectionVariables.get('cartProductId'));\n  pm.expect(data.items[0].quantity).to.eql(2);\n});\npm.expect(data.cartId).to.be.a('string').and.not.empty;"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{cartAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{cartProductId}}\",\n  \"quantity\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cart/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cart",
+                "items"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "03 - Get cart",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cart retrieval returns 200', function () { pm.response.to.have.status(200); });\nconst data = pm.response.json().data;\npm.expect(data.items).to.have.length(1);\npm.expect(data.items[0].quantity).to.eql(2);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{cartAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cart",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cart"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "04 - Add same product again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Adding an existing product increments its quantity', function () { pm.response.to.have.status(200); });\nconst data = pm.response.json().data;\npm.expect(data.items).to.have.length(1);\npm.expect(data.items[0].quantity).to.eql(5);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{cartAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{cartProductId}}\",\n  \"quantity\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cart/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cart",
+                "items"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "05 - Set item quantity",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Setting cart quantity returns 200', function () { pm.response.to.have.status(200); });\nconst data = pm.response.json().data;\npm.expect(data.items).to.have.length(1);\npm.expect(data.items[0].quantity).to.eql(4);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{cartAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cart/items/{{cartProductId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cart",
+                "items",
+                "{{cartProductId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "06 - Remove item",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Removing cart item returns 200', function () { pm.response.to.have.status(200); });\npm.expect(pm.response.json().data.items).to.have.length(0);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{cartAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cart/items/{{cartProductId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cart",
+                "items",
+                "{{cartProductId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "07 - Add item before clear",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('cartSecondProductId', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Second cart item was added', function () { pm.response.to.have.status(200); });\nconst data = pm.response.json().data;\npm.expect(data.items).to.have.length(1);\npm.expect(data.items[0].productId).to.eql(pm.collectionVariables.get('cartSecondProductId'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{cartAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{cartSecondProductId}}\",\n  \"quantity\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cart/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cart",
+                "items"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "08 - Clear cart",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Clearing cart returns 200', function () { pm.response.to.have.status(200); });\npm.expect(pm.response.json().data.items).to.have.length(0);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{cartAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cart/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cart",
+                "items"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "09 - Verify empty cart",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Clearing cart returns 200', function () { pm.response.to.have.status(200); });\npm.expect(pm.response.json().data.items).to.have.length(0);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{cartAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cart",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cart"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "variable": [
@@ -1668,6 +2159,26 @@
     {
       "key": "inventoryServiceUrl",
       "value": "http://localhost:8083",
+      "type": "string"
+    },
+    {
+      "key": "cartAccessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "cartProductId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "cartSecondProductId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "cartServiceUrl",
+      "value": "http://localhost:8084",
       "type": "string"
     }
   ]

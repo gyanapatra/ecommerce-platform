@@ -4,7 +4,7 @@ A scalable, secure, and cloud-ready e-commerce platform built using Java 21, Spr
 
 The project demonstrates production-oriented backend engineering practices, including centralized dependency management, JWT-based authentication, refresh-token management, database migrations, API gateway security, automated testing, and cloud-native development.
 
-> **Project status:** Active development. The Maven multi-module foundation, Auth Service, API Gateway, Product Catalog Service, and Inventory Service are implemented. Auth Service registration, login, refresh-token functionality, logout, and protected-user functionality are available. The API Gateway routes authentication requests to Auth Service and validates JWTs reactively. Four Gateway JWT unit tests have passed. Registration and login through the Gateway, plus valid/unauthorized protected-request scenarios, have also been manually verified.
+> **Project status:** Active development. The Maven multi-module foundation, Auth Service, API Gateway, Product Catalog Service, Inventory Service, and Shopping Cart Service are implemented. Auth Service registration, login, refresh-token functionality, logout, and protected-user functionality are available. The API Gateway routes authentication requests to Auth Service and validates JWTs reactively. Four Gateway JWT unit tests have passed. Registration and login through the Gateway, plus valid/unauthorized protected-request scenarios, have also been manually verified.
 
 ## Key Features
 
@@ -12,8 +12,9 @@ The project demonstrates production-oriented backend engineering practices, incl
 - **User registration and login:** Authentication endpoints for user access.
 - **Refresh-token management:** Persistent refresh tokens with expiration handling.
 - **Logout endpoint:** Logout functionality is implemented; dedicated integration coverage for revocation is still planned.
-- **API Gateway:** Spring Cloud Gateway Server WebFlux routes authentication, product, and inventory requests to their services.
+- **API Gateway:** Spring Cloud Gateway Server WebFlux routes authentication, product, inventory, and cart requests to their services.
 - **Inventory Service:** Maintains per-product on-hand stock, reserves quantities, and supports idempotent adjustments, commits, and releases.
+- **Shopping Cart Service:** Stores product quantities for each authenticated customer and validates JWTs independently of the Gateway.
 - **Reactive JWT validation:** Gateway validates JWT signatures and expiration and establishes authenticated user identity and role authorities.
 - **Protected APIs:** Spring Security integration with JWT authentication filters in Auth Service and reactive authentication at the Gateway.
 - **Global exception handling:** Authentication and request errors are mapped to HTTP responses.
@@ -76,6 +77,10 @@ ecommerce-platform/
 │   │   │       └── db/migration/
 │   │   └── test/
 │   │       └── java/com/product/ecommerce/auth/
+│   └── pom.xml
+├── cart-service/
+│   ├── src/main/java/com/product/ecommerce/cart/
+│   ├── src/main/resources/db/migration/
 │   └── pom.xml
 ├── common/
 │   └── pom.xml
@@ -167,6 +172,7 @@ When the access token expires, the client can use the refresh token with the Aut
 | API Gateway | 8090 | Client-facing gateway and route forwarding |
 | Product Catalog Service | 8082 | Product catalog APIs |
 | Inventory Service | 8083 | Stock and reservation APIs |
+| Shopping Cart Service | 8084 | Authenticated customer carts |
 
 The API Gateway health endpoint is available at:
 
@@ -317,9 +323,23 @@ Inventory Service owns stock counts for product IDs, independently of the Produc
 | `POST` | `/api/v1/inventory/{productId}/reservations/{reservationId}/commit` | Commit a reservation and consume stock |
 
 Adjustment IDs and reservation IDs make retries idempotent. Stock rows use database locking so concurrent reservations cannot consume more than the available quantity. Initial stock is added through a positive adjustment. Reservation quantity must be positive; an insufficient-stock attempt returns `409 Conflict`.
+
+## Shopping Cart Service
+
+Shopping Cart Service stores product UUIDs and quantities in a cart owned by the authenticated customer. It verifies the HS256 access token in addition to Gateway validation, and derives the user ID from the token subject. Create the ecommerce_cart database, configure DB_URL, DB_USERNAME, DB_PASSWORD, and the same JWT_SECRET used by Auth Service, then run `mvn spring-boot:run -pl cart-service` (default port 8084). Flyway creates the schema. The Gateway forwards `/api/v1/cart/**` to CART_SERVICE_URL (default http://localhost:8084).
+
+| Method | Path | Behavior |
+|---|---|---|
+| `GET` | `/api/v1/cart` | Retrieve the current customer cart |
+| `POST` | `/api/v1/cart/items` | Add a product or increase its quantity |
+| `PUT` | `/api/v1/cart/items/{productId}` | Set an existing item quantity |
+| `DELETE` | `/api/v1/cart/items/{productId}` | Remove an item |
+| `DELETE` | `/api/v1/cart/items` | Clear the cart |
+
+The service currently stores product IDs and quantities only. Product existence checks and price calculation are deferred to later catalog and order integration.
 ## API Overview
 
-The Auth Service currently includes registration, login, refresh-token functionality, logout, and protected-user functionality. The API Gateway currently routes the `/api/v1/auth/**` path to Auth Service.
+The Auth Service currently includes registration, login, refresh-token functionality, logout, and protected-user functionality. The API Gateway routes `/api/v1/auth/**`, `/api/v1/products/**`, `/api/v1/inventory/**`, and `/api/v1/cart/**` to their corresponding services.
 
 | Capability | Purpose |
 |---|---|
@@ -447,7 +467,7 @@ Additional security hardening, automated security tests, and production deployme
 
 - [ ] User and Member Service
 - [x] Product Catalog Service
-- [ ] Shopping Cart Service
+- [x] Shopping Cart Service
 - [ ] Order Service
 - [ ] Payment Service
 - [x] Inventory Service
