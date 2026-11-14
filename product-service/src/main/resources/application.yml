@@ -11,6 +11,13 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      connect-timeout: 2s
+  cache:
+    type: redis
 
 server:
   port: ${SERVER_PORT:8082}

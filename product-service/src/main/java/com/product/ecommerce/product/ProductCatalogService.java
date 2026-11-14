@@ -3,6 +3,8 @@ package com.product.ecommerce.product;
 import com.product.ecommerce.common.exception.ResourceNotFoundException;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +18,7 @@ public class ProductCatalogService {
     this.products = products;
   }
 
+  @CacheEvict(cacheNames = {"product-by-id", "product-list"}, allEntries = true)
   public ProductResponse create(ProductRequest request) {
     if (products.findBySku(request.sku()).isPresent()) {
       throw new IllegalArgumentException("A product with this SKU already exists");
@@ -31,11 +34,13 @@ public class ProductCatalogService {
   }
 
   @Transactional(readOnly = true)
+  @Cacheable(cacheNames = "product-by-id", key = "#id")
   public ProductResponse get(UUID id) {
     return ProductResponse.from(find(id));
   }
 
   @Transactional(readOnly = true)
+  @Cacheable(cacheNames = "product-list", key = "#category == null ? '' : #category.trim().toLowerCase()")
   public List<ProductResponse> list(String category) {
     List<Product> result =
         (category == null || category.isBlank())
@@ -44,6 +49,7 @@ public class ProductCatalogService {
     return result.stream().map(ProductResponse::from).toList();
   }
 
+  @CacheEvict(cacheNames = {"product-by-id", "product-list"}, allEntries = true)
   public ProductResponse update(UUID id, ProductRequest request) {
     Product product = find(id);
     products
@@ -65,6 +71,7 @@ public class ProductCatalogService {
     }
   }
 
+  @CacheEvict(cacheNames = {"product-by-id", "product-list"}, allEntries = true)
   public void delete(UUID id) {
     Product product = find(id);
     product.update(
