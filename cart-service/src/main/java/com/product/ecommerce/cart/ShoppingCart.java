@@ -16,7 +16,9 @@ import java.util.UUID;
 @Entity
 @Table(name = "shopping_carts")
 public class ShoppingCart {
-  @Id private UUID id;
+  @Id
+  @Column(name = "cart_id", nullable = false)
+  private UUID id;
 
   @Column(name = "user_id", nullable = false, unique = true)
   private UUID userId;

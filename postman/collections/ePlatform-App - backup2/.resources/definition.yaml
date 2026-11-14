@@ -1,4 +1,5 @@
 $kind: collection
+name: ePlatform-App - Auth Refresh & Logout Flow
 description: End-to-end Postman checks for Auth refresh-token rotation, logout, API Gateway instances, and Product Catalog CRUD/soft-delete. Set the email and password collection variables to a local test account before running authenticated flows.
 variables:
   baseUrl: http://localhost:8090
