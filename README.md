@@ -4,7 +4,7 @@ A scalable, secure, and cloud-ready e-commerce platform built using Java 21, Spr
 
 The project demonstrates production-oriented backend engineering practices, including centralized dependency management, JWT-based authentication, refresh-token management, database migrations, API gateway security, automated testing, and cloud-native development.
 
-> **Project status:** Active development. The Maven multi-module foundation, Auth Service, API Gateway, Product Catalog Service, Inventory Service, Shopping Cart Service, and Order Service are implemented. Auth Service registration, login, refresh-token functionality, logout, and protected-user functionality are available. The API Gateway routes authentication requests to Auth Service and validates JWTs reactively. Four Gateway JWT unit tests have passed. Registration and login through the Gateway, plus valid/unauthorized protected-request scenarios, have also been manually verified.
+> **Project status:** Active development. The Maven multi-module foundation, Auth Service, API Gateway, Product Catalog Service, Inventory Service, Shopping Cart Service, Order Service, and Notification Service are implemented. Auth Service registration, login, refresh-token functionality, logout, and protected-user functionality are available. The API Gateway routes authentication requests to Auth Service and validates JWTs reactively. Four Gateway JWT unit tests have passed. Registration and login through the Gateway, plus valid/unauthorized protected-request scenarios, have also been manually verified.
 
 ## Key Features
 
@@ -15,9 +15,11 @@ The project demonstrates production-oriented backend engineering practices, incl
 - **API Gateway:** Spring Cloud Gateway Server WebFlux routes authentication, product, inventory, cart, and order requests to their services.
 - **Inventory Service:** Maintains per-product on-hand stock, reserves quantities, and supports idempotent adjustments, commits, and releases.
 - **Shopping Cart Service:** Stores product quantities for each authenticated customer and validates JWTs independently of the Gateway.
-- **Order Service:** Checks out the authenticated customer's cart, snapshots catalog prices, and coordinates inventory reservations.
+- **Order Service:** Checks out the authenticated customer's cart, snapshots catalog prices, coordinates inventory reservations, and records lifecycle events in a transactional outbox.
 - **Reactive JWT validation:** Gateway validates JWT signatures and expiration and establishes authenticated user identity and role authorities.
 - **Protected APIs:** Spring Security integration with JWT authentication filters in Auth Service and reactive authentication at the Gateway.
+- **Notification Service:** Consumes order events and stores customer notifications idempotently; authenticated users can list and mark notifications as read.
+- **Redis product caching:** Product detail and list reads use Redis with short TTLs; product writes invalidate both caches.
 - **Global exception handling:** Authentication and request errors are mapped to HTTP responses.
 - **Database versioning:** Flyway migrations manage database schema changes.
 - **Centralized dependency management:** Maven parent project and internal BOM support consistent dependency versions.
@@ -40,12 +42,12 @@ The project demonstrates production-oriented backend engineering practices, incl
 | Build | Maven |
 | Testing | JUnit 5, Spring Boot Test, MockMvc, Reactor Test, Testcontainers 2.0.5 |
 | API security | Spring Security, JJWT 0.12.6, reactive JWT authentication |
-| Planned messaging | Apache Kafka |
-| Planned caching | Redis |
+| Messaging | Apache Kafka (order lifecycle events) |
+| Caching | Redis (Product Catalog read cache) |
 | Planned deployment | Docker, Kubernetes |
 | Planned frontend | Angular |
 
-Technologies marked as planned will be integrated as development progresses.
+Kafka messaging and Redis caching are now used by the local backend. Cloud deployment remains optional and is not required for local development.
 
 ## Project Structure
 
@@ -93,6 +95,10 @@ ecommerce-platform/
 │   └── pom.xml
 ├── product-service/
 │   ├── src/main/java/com/product/ecommerce/product/
+│   ├── src/main/resources/db/migration/
+│   └── pom.xml
+├── notification-service/
+│   ├── src/main/java/com/product/ecommerce/notification/
 │   ├── src/main/resources/db/migration/
 │   └── pom.xml
 ├── common/
@@ -180,13 +186,16 @@ When the access token expires, the client can use the refresh token with the Aut
 
 | Component | Default local port | Purpose |
 |---|---:|---|
-| PostgreSQL | 5432 | Auth Service persistence |
+| PostgreSQL | 5432 | Separate persistence databases for each service |
 | Auth Service | 8081 | Authentication endpoints and protected user endpoint |
 | API Gateway | 8090 | Client-facing gateway and route forwarding |
 | Product Catalog Service | 8082 | Product catalog APIs |
 | Inventory Service | 8083 | Stock and reservation APIs |
 | Shopping Cart Service | 8084 | Authenticated customer carts |
-| Order Service | 8085 | Checkout, order history, and inventory reservations |
+| Order Service | 8085 | Checkout, order history, inventory reservations, and outbox publication |
+| Notification Service | 8086 | Authenticated order notifications |
+| Redis | 6379 | Product Catalog read cache |
+| Kafka | 9092 | Local order event broker |
 
 The API Gateway health endpoint is available at:
 
@@ -311,9 +320,22 @@ mvn spring-boot:run -pl api-gateway
 
 The default Gateway port is 8090. Keep both Auth Service and API Gateway running.
 
+## Local Kafka and Redis
+
+No cloud account or paid cloud service is needed for this local setup. Start the broker and cache from the repository root with Docker Desktop running:
+
+~~~powershell
+docker compose up -d
+docker compose ps
+~~~
+
+The compose file starts one local Kafka broker and Redis with local data volumes. Kafka is configured for local plaintext development and is not a production security configuration. Stop the containers with docker compose down; this keeps the volumes. Use docker compose down -v only when you also want to erase local Kafka and Redis data.
+
+Product Service uses Redis by default. Order Service stores events in PostgreSQL first and publishes them when Kafka is available; if Kafka is offline, the events remain pending in its outbox and are retried after the broker returns. Set KAFKA_ENABLED=false only when intentionally running without the Kafka publisher or notification consumer.
+
 ## Product Catalog Service
 
-The catalog service owns product data and its Flyway-managed PostgreSQL schema. Create the `ecommerce_product` database, configure `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD`, then start it with `mvn spring-boot:run -pl product-service` (default port `8082`). The Gateway forwards `/api/v1/products/**` to it; configure `PRODUCT_SERVICE_URL` to override the local URL. Catalog requests through the Gateway require a valid JWT.
+The catalog service owns product data and its Flyway-managed PostgreSQL schema. Product detail and active-list reads use Redis (5-minute and 1-minute TTLs); create, update, and soft-delete operations invalidate both caches. Create the `ecommerce_product` database, configure `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD`, then start it with `mvn spring-boot:run -pl product-service` (default port `8082`). The Gateway forwards `/api/v1/products/**` to it; configure `PRODUCT_SERVICE_URL` to override the local URL. Catalog requests through the Gateway require a valid JWT.
 
 | Method | Path | Behavior |
 |---|---|---|
@@ -365,11 +387,25 @@ Create the `ecommerce_order` PostgreSQL database, configure `DB_URL`, `DB_USERNA
 | `GET` | `/api/v1/orders/{orderId}` | Retrieve an owned order |
 | `POST` | `/api/v1/orders/{orderId}/cancel` | Cancel a placed order and release its inventory reservations |
 
-Orders snapshot product names, quantities, unit prices, and totals. Payment processing is not connected yet; placed orders keep stock reserved until cancellation or later payment integration.
+Orders snapshot product names, quantities, unit prices, and totals.
+Placed and cancelled transitions write order events to the PostgreSQL outbox in the same database transaction. A background publisher retries unpublished records and sends them to Kafka; delivery is at-least-once, so consumers de-duplicate by event ID. Payment processing is not connected yet; placed orders keep stock reserved until cancellation or later payment integration.
+
+## Notification Service
+
+Notification Service consumes ORDER_PLACED and ORDER_CANCELLED records from ecommerce.order-events.v1 and stores one in-app notification per event ID. Kafka retries a failed message three times and then routes it to ecommerce.order-events.v1.DLT for inspection. The consumer persists before its offset is committed, and the unique event ID makes redelivery safe.
+
+Create the ecommerce_notification PostgreSQL database, configure DB_URL, DB_USERNAME, DB_PASSWORD, and the same JWT_SECRET as Auth Service, start Kafka, then run mvn spring-boot:run -pl notification-service (default port 8086). In Postman, run Order Management first to create a notification, then run the Notification Service folder. The Gateway forwards /api/v1/notifications/** to NOTIFICATION_SERVICE_URL (default http://localhost:8086).
+
+| Method | Path | Behavior |
+|---|---|---|
+| GET | /api/v1/notifications | List notifications for the authenticated user |
+| PUT | /api/v1/notifications/{notificationId}/read | Mark an owned notification as read |
+
+Notifications are persisted in this service's database. No email provider or cloud service is called.
 
 ## API Overview
 
-The Auth Service currently includes registration, login, refresh-token functionality, logout, and protected-user functionality. The API Gateway routes `/api/v1/auth/**`, `/api/v1/products/**`, `/api/v1/inventory/**`, `/api/v1/cart/**`, and `/api/v1/orders/**` to their corresponding services.
+The Auth Service currently includes registration, login, refresh-token functionality, logout, and protected-user functionality. Notification Service adds authenticated in-app order notifications. The API Gateway routes authentication, Product, Inventory, Cart, Order, and Notification API requests to their corresponding services.
 
 | Capability | Purpose |
 |---|---|
@@ -379,7 +415,9 @@ The Auth Service currently includes registration, login, refresh-token functiona
 | Current user | Retrieve information about the authenticated user |
 | Refresh tokens | Support access-token renewal |
 | Logout | Provide an endpoint to log out and invalidate a refresh token |
-| Gateway routing | Forward Auth, Product, Inventory, Cart, and Order API requests to their services |
+| Gateway routing | Forward Auth, Product, Inventory, Cart, Order, and Notification API requests to their services |
+| Order events | Transactional outbox delivers placed and cancelled lifecycle events through Kafka |
+| Notifications | Store and retrieve de-duplicated order notifications per authenticated user |
 | Gateway JWT validation | Verify bearer-token signature and expiration and establish user identity and role authorities |
 
 Refer to the controller implementations for the exact HTTP methods, endpoint paths, request bodies, and response formats.
@@ -418,9 +456,17 @@ auth-service/target/auth-service-1.0.0-SNAPSHOT.jar
 
 The Gateway tests use JUnit 5, Reactor Test, and JJWT with an isolated test signing key. They do not require PostgreSQL or running application services.
 
+### Product Catalog Service
+
+Latest Product Catalog verification: 3 tests passed, including a PostgreSQL-and-Redis Testcontainers integration test for cached reads, JSON serialization of timestamp fields, and cache invalidation after product changes.
+
+### Notification Service
+
+Latest Notification Service verification: 1 test passed, confirming duplicate Kafka event delivery creates only one notification.
+
 ### Order Service
 
-Latest Order Service verification: 8 tests passed, 0 failures, 0 errors, including PostgreSQL Testcontainers migration and persistence coverage. The tests also cover cart checkout, price snapshots, inventory reservations, idempotent retries, reservation compensation, cancellation, and JWT validation.
+Latest Order Service verification: 10 tests passed, 0 failures, 0 errors, including PostgreSQL Testcontainers migration and persistence coverage. The tests also cover cart checkout, price snapshots, inventory reservations, idempotent retries, reservation compensation, cancellation, and JWT validation.
 
 ### Manual Gateway Verification
 
@@ -435,7 +481,7 @@ The following scenarios have also been manually verified through Postman using p
 | Protected current-user request without a token | `401 Unauthorized` |
 | Protected current-user request with an invalid token | `401 Unauthorized` |
 
-The manual checks and module-specific test runs are recorded separately; a new full-reactor `mvn clean verify` result should be recorded after it is run.
+The latest full-reactor verification completed on 2026-11-14: 45 tests passed, with 0 failures and 0 errors, across all 10 Maven modules.
 
 Refresh-token rotation, old-token reuse rejection, logout revocation, and post-logout refresh rejection still require dedicated integration test coverage.
 
@@ -505,12 +551,12 @@ Additional security hardening, automated security tests, and production deployme
 - [x] Order Service
 - [ ] Payment Service
 - [x] Inventory Service
-- [ ] Notification Service
+- [x] Notification Service
 
 ### Phase 4 — Distributed Architecture
 
-- [ ] Integrate Apache Kafka.
-- [ ] Introduce Redis caching where appropriate.
+- [x] Integrate Apache Kafka for order lifecycle events using a transactional outbox and notification consumer.
+- [x] Introduce Redis caching for Product Catalog reads with write invalidation.
 - [ ] Implement resilient inter-service communication.
 - [ ] Add distributed tracing and centralized observability.
 
@@ -525,7 +571,7 @@ Additional security hardening, automated security tests, and production deployme
 
 ### Phase 6 — Frontend
 
-- [ ] Develop the Angular frontend.
+- [ ] Develop a professional, user-friendly Angular storefront aligned with the catalog, authentication, cart, checkout, order-history, and notification APIs.
 - [ ] Integrate frontend authentication.
 - [ ] Implement shopping, checkout, and order-tracking workflows.
 

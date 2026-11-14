@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "b6b83d7f-4800-4a87-8078-a8a39376f09a",
     "name": "ePlatform-App - Auth Refresh & Logout Flow",
-    "description": "End-to-end tests for Auth refresh-token rotation, logout, Gateway instances, Product Catalog, Inventory stock and reservations, and authenticated Shopping Cart operations. Set email and password in a local Postman environment.",
+    "description": "End-to-end tests for Auth refresh-token rotation, logout, Gateway instances, Product Catalog, Inventory stock and reservations, authenticated Shopping Cart and Order workflows, and order notifications. Set email and password in a local Postman environment.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "59064590",
     "_collection_link": "https://go.postman.co/collection/59064590-b6b83d7f-4800-4a87-8078-a8a39376f09a?source=collection_link"
@@ -2836,6 +2836,166 @@
         }
       ],
       "name": "Order Management"
+    },
+    {
+      "name": "Notification Service",
+      "description": "Run the Order Management folder first to create an order event. Then run this folder in order to verify the stored notification and mark it as read.",
+      "item": [
+        {
+          "name": "00 - Login and capture access token",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.unset('notificationAccessToken');\npm.collectionVariables.unset('notificationId');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Notification test login returns 200', function () { pm.response.to.have.status(200); });\nconst body = pm.response.json();\npm.expect(body.accessToken).to.be.a('string').and.not.empty;\npm.collectionVariables.set('notificationAccessToken', body.accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"email\": \"{{email}}\", \"password\": \"{{password}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "01 - Notification Service health (direct)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{notificationServiceUrl}}/actuator/health",
+              "host": [
+                "{{notificationServiceUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "02 - List my notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Notification list returns 200', function () { pm.response.to.have.status(200); });\nconst body = pm.response.json();\npm.expect(body.success).to.eql(true);\npm.expect(body.data).to.be.an('array');\nif (body.data.length > 0) {\n  pm.collectionVariables.set('notificationId', body.data[0].id);\n} else {\n  pm.collectionVariables.unset('notificationId');\n}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{notificationAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "03 - Mark first notification as read",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Notification is marked as read', function () { pm.response.to.have.status(200); });\npm.expect(pm.response.json().data.read).to.eql(true);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{notificationAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/{{notificationId}}/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "{{notificationId}}",
+                "read"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "variable": [
@@ -2990,6 +3150,21 @@
     {
       "value": "http://localhost:8085",
       "key": "orderServiceUrl",
+      "type": "string"
+    },
+    {
+      "key": "notificationServiceUrl",
+      "value": "http://localhost:8086",
+      "type": "string"
+    },
+    {
+      "key": "notificationAccessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "notificationId",
+      "value": "",
       "type": "string"
     }
   ]
