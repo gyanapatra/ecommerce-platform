@@ -2067,7 +2067,7 @@
       ]
     },
     {
-      "description": "Run sequentially. Creates a real Product and Inventory row, checks out the cart, verifies idempotency and cancellation, then checks insufficient-stock handling.",
+      "description": "Run sequentially. Logs in, creates a real Product and Inventory row, clears existing cart contents, checks out the new product, tests retries/cancellation/insufficient stock, and clears the cart at the end.",
       "item": [
         {
           "response": [],
@@ -2281,6 +2281,47 @@
           "name": "03 - Add stock for checkout"
         },
         {
+          "event": [
+            {
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(''Existing cart is cleared before order tests'', function () { pm.response.to.have.status(200); });\npm.expect(pm.response.json().data.items).to.have.length(0);"
+                ]
+              },
+              "listen": "test"
+            }
+          ],
+          "name": "04 - Clear existing cart before order test",
+          "request": {
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cart/items",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cart",
+                "items"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "value": "{{orderAccessToken}}",
+                  "key": "token",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [],
+            "method": "DELETE"
+          },
+          "response": []
+        },
+        {
           "response": [],
           "event": [
             {
@@ -2333,7 +2374,7 @@
               "mode": "raw"
             }
           },
-          "name": "04 - Add product to cart"
+          "name": "05 - Add product to cart"
         },
         {
           "response": [],
@@ -2387,7 +2428,7 @@
               "type": "bearer"
             }
           },
-          "name": "05 - Checkout cart"
+          "name": "06 - Checkout cart"
         },
         {
           "response": [],
@@ -2432,7 +2473,7 @@
               "type": "bearer"
             }
           },
-          "name": "06 - Retry checkout idempotently"
+          "name": "07 - Retry checkout idempotently"
         },
         {
           "response": [],
@@ -2472,7 +2513,7 @@
               "type": "bearer"
             }
           },
-          "name": "07 - List my orders"
+          "name": "08 - List my orders"
         },
         {
           "response": [],
@@ -2513,7 +2554,7 @@
               "type": "bearer"
             }
           },
-          "name": "08 - Get order details"
+          "name": "09 - Get order details"
         },
         {
           "response": [],
@@ -2555,7 +2596,7 @@
               "type": "bearer"
             }
           },
-          "name": "09 - Cancel placed order"
+          "name": "10 - Cancel placed order"
         },
         {
           "response": [],
@@ -2610,7 +2651,7 @@
               "mode": "raw"
             }
           },
-          "name": "10 - Add unavailable quantity to cart"
+          "name": "11 - Add unavailable quantity to cart"
         },
         {
           "response": [],
@@ -2664,7 +2705,7 @@
               "type": "bearer"
             }
           },
-          "name": "11 - Reject checkout with insufficient stock"
+          "name": "12 - Reject checkout with insufficient stock"
         },
         {
           "response": [],
@@ -2709,7 +2750,7 @@
               "type": "bearer"
             }
           },
-          "name": "12 - Retry rejected checkout"
+          "name": "13 - Retry rejected checkout"
         },
         {
           "response": [],
@@ -2750,7 +2791,7 @@
               "type": "bearer"
             }
           },
-          "name": "13 - Verify stock after cancellation and rejection"
+          "name": "14 - Verify stock after cancellation and rejection"
         },
         {
           "response": [],
@@ -2791,7 +2832,7 @@
               "type": "bearer"
             }
           },
-          "name": "14 - Clear cart after failed checkout"
+          "name": "15 - Clear cart after failed checkout"
         }
       ],
       "name": "Order Management"
