@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -26,6 +26,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -41,7 +42,22 @@ class OrderServiceTest {
   @Mock private CartClient cartClient;
   @Mock private ProductClient productClient;
   @Mock private InventoryClient inventoryClient;
+  @Mock private OrderPersistenceService orderPersistence;
   @InjectMocks private OrderService orderService;
+
+  @BeforeEach
+  void configureOrderPersistence() {
+    lenient().when(orderPersistence.markPlacedAndRecord(any())).thenAnswer(invocation -> {
+      CustomerOrder order = invocation.getArgument(0);
+      order.markPlaced();
+      return order;
+    });
+    lenient().when(orderPersistence.markCancelledAndRecord(any())).thenAnswer(invocation -> {
+      CustomerOrder order = invocation.getArgument(0);
+      order.markCancelled();
+      return order;
+    });
+  }
 
   @Test
   void checksOutCartSnapshotsProductPricesReservesStockAndClearsCart() {
@@ -61,6 +77,7 @@ class OrderServiceTest {
     assertEquals(new BigDecimal("19.99"), response.items().get(0).unitPrice());
     verify(inventoryClient).reserve(eq(productId), any(UUID.class), eq(2));
     verify(cartClient).clearCart(AUTHORIZATION);
+    verify(orderPersistence).markPlacedAndRecord(any(CustomerOrder.class));
   }
 
   @Test
@@ -78,6 +95,7 @@ class OrderServiceTest {
     assertEquals(OrderStatus.PLACED, response.status());
     verify(cartClient, never()).getCart(any());
     verify(inventoryClient, never()).reserve(any(), any(), anyInt());
+    verify(orderPersistence, never()).markPlacedAndRecord(any());
   }
 
   @Test
@@ -117,12 +135,12 @@ class OrderServiceTest {
     order.addItem(productId, "Keyboard", 1, new BigDecimal("35.00"));
     order.markPlaced();
     when(orders.findByIdAndUserId(order.getId(), userId)).thenReturn(Optional.of(order));
-    when(orders.saveAndFlush(any(CustomerOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
     OrderResponse response = orderService.cancel(userId, order.getId());
 
     assertEquals(OrderStatus.CANCELLED, response.status());
     verify(inventoryClient).release(eq(productId), eq(order.getItems().get(0).getReservationId()));
+    verify(orderPersistence).markCancelledAndRecord(order);
   }
 
   private CartSnapshot cart(UUID userId, CartLineSnapshot... items) {

@@ -23,13 +23,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class OrderService {
   private final OrderRepository orders;
+  private final OrderPersistenceService orderPersistence;
   private final CartClient cartClient;
   private final ProductClient productClient;
   private final InventoryClient inventoryClient;
 
-  public OrderService(OrderRepository orders, CartClient cartClient, ProductClient productClient,
-      InventoryClient inventoryClient) {
+  public OrderService(OrderRepository orders, OrderPersistenceService orderPersistence,
+      CartClient cartClient, ProductClient productClient, InventoryClient inventoryClient) {
     this.orders = orders;
+    this.orderPersistence = orderPersistence;
     this.cartClient = cartClient;
     this.productClient = productClient;
     this.inventoryClient = inventoryClient;
@@ -90,8 +92,7 @@ public class OrderService {
     for (CustomerOrderItem item : order.getItems()) {
       inventoryClient.release(item.getProductId(), item.getReservationId());
     }
-    order.markCancelled();
-    return OrderResponse.from(orders.saveAndFlush(order));
+    return OrderResponse.from(orderPersistence.markCancelledAndRecord(order));
   }
 
   private OrderResponse resumeOrReturn(CustomerOrder order, String authorization) {
@@ -130,8 +131,7 @@ public class OrderService {
     // Clearing the cart is idempotent. If it fails, this order stays PROCESSING and can be retried
     // with the same idempotency key; Inventory reservations also use stable IDs and are idempotent.
     cartClient.clearCart(authorization);
-    order.markPlaced();
-    return OrderResponse.from(orders.saveAndFlush(order));
+    return OrderResponse.from(orderPersistence.markPlacedAndRecord(order));
   }
 
   private boolean releaseReservations(CustomerOrder order) {
