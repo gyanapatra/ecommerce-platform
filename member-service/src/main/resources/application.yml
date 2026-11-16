@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: member-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ecommerce_member}
+    username: ${DB_USERNAME:ecommerce_user}
+    password: ${DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+server:
+  port: ${SERVER_PORT:8087}
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
