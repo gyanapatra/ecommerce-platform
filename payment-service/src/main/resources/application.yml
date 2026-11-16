@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: payment-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ecommerce_payment}
+    username: ${DB_USERNAME:ecommerce_user}
+    password: ${DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+server:
+  port: ${SERVER_PORT:8088}
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+  payment:
+    currency: ${PAYMENT_CURRENCY:INR}
+services:
+  order:
+    base-url: ${ORDER_SERVICE_URL:http://localhost:8085}
+  payment-service-key: ${PAYMENT_SERVICE_INTERNAL_KEY:}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
