@@ -1,0 +1,3 @@
+$kind: collection
+description: Smoke tests for the NGINX front door at http://localhost:8092. Run requests in order; login captures a token for the protected current-user request.
+order: 3500

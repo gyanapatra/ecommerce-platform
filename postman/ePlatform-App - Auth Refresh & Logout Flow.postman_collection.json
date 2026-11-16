@@ -341,7 +341,7 @@
       "name": "APi-Gateway",
       "item": [
         {
-          "name": "api-gateway-8090",
+          "name": "load-balancer-8092",
           "request": {
             "method": "GET",
             "header": [
@@ -408,9 +408,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/actuator/health",
+              "raw": "{{baseUrl-8090}}/actuator/health",
               "host": [
-                "{{baseUrl}}"
+                "{{baseUrl-8090}}"
               ],
               "path": [
                 "actuator",
@@ -480,9 +480,9 @@
               }
             },
             "url": {
-              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "raw": "{{baseUrl-8090}}/api/v1/auth/login",
               "host": [
-                "{{baseUrl}}"
+                "{{baseUrl-8090}}"
               ],
               "path": [
                 "api",
@@ -535,7 +535,7 @@
           "response": []
         }
       ],
-      "description": "Verify both API Gateway instances are healthy and that an access token issued through Gateway 1 (8090) is accepted by Gateway 2 (8091)."
+      "description": "Verify both Gateway instances directly and validate cross-instance token acceptance. General API requests use the front-door load balancer at {{baseUrl}}."
     },
     {
       "name": "Product Catalog",
@@ -2996,12 +2996,142 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Front Door Load Balancer",
+      "item": [
+        {
+          "name": "01 - Health through load balancer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Load balancer health returns 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Gateway health status is UP', function () { pm.expect(pm.response.json().status).to.eql('UP'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "02 - Login through load balancer (capture token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Login through load balancer returns 200', function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Login response contains accessToken', function () { pm.expect(body.accessToken).to.be.a('string').and.not.empty; });",
+                  "pm.collectionVariables.set('loadBalancerAccessToken', body.accessToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "mode": "raw"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "03 - Protected current-user through load balancer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Protected current-user request through load balancer returns 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Current-user response is an object', function () { pm.expect(pm.response.json()).to.be.an('object'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{loadBalancerAccessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "Smoke tests for the NGINX front door at http://localhost:8092. Run requests in order; the login request captures a token for the protected current-user request."
     }
   ],
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:8090"
+      "value": "http://localhost:8092"
     },
     {
       "key": "email",
@@ -3164,6 +3294,15 @@
     },
     {
       "key": "notificationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "baseUrl-8090",
+      "value": "http://localhost:8090"
+    },
+    {
+      "key": "loadBalancerAccessToken",
       "value": "",
       "type": "string"
     }

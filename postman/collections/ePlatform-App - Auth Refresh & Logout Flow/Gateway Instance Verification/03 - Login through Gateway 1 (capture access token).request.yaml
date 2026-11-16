@@ -1,5 +1,5 @@
 $kind: http-request
-url: "{{baseUrl}}/api/v1/auth/login"
+url: "{{baseUrl-8090}}/api/v1/auth/login"
 method: POST
 headers:
   Content-Type: application/json
@@ -19,3 +19,4 @@ scripts:
       pm.collectionVariables.set('gatewayAccessToken', body.accessToken);
     language: text/javascript
 order: 3000
+
