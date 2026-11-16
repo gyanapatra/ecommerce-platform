@@ -80,6 +80,14 @@ public class OrderService {
     return OrderResponse.from(findOwnedOrder(userId, orderId));
   }
 
+  public OrderResponse confirmPayment(UUID userId, UUID orderId) {
+    CustomerOrder order = findOwnedOrder(userId, orderId);
+    if (order.getStatus() == OrderStatus.PAID) return OrderResponse.from(order);
+    if (order.getStatus() != OrderStatus.PLACED) {
+      throw new OrderConflictException("Only a placed order can be marked paid");
+    }
+    return OrderResponse.from(orderPersistence.markPaidAndRecord(order));
+  }
   public OrderResponse cancel(UUID userId, UUID orderId) {
     CustomerOrder order = findOwnedOrder(userId, orderId);
     if (order.getStatus() == OrderStatus.CANCELLED) {
@@ -151,3 +159,5 @@ public class OrderService {
         .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
   }
 }
+
+

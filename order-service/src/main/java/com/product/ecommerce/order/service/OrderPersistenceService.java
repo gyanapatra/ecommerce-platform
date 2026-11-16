@@ -34,6 +34,12 @@ public class OrderPersistenceService {
   }
 
   @Transactional
+  public CustomerOrder markPaidAndRecord(CustomerOrder order) {
+    order.markPaid();
+    return saveWithEvent(order, OrderEvent.ORDER_PAID);
+  }
+
+  @Transactional
   public CustomerOrder markCancelledAndRecord(CustomerOrder order) {
     order.markCancelled();
     return saveWithEvent(order, OrderEvent.ORDER_CANCELLED);

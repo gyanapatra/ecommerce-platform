@@ -27,6 +27,7 @@ app:
     enabled: ${KAFKA_ENABLED:true}
   outbox:
     poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
+  payment-service-key: ${PAYMENT_SERVICE_INTERNAL_KEY:}
 
 services:
   cart:

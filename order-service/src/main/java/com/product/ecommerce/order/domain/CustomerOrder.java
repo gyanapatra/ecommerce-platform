@@ -75,6 +75,13 @@ public class CustomerOrder {
     touch();
   }
 
+  public void markPaid() {
+    if (status == OrderStatus.PAID) return;
+    requireStatus(OrderStatus.PLACED);
+    status = OrderStatus.PAID;
+    touch();
+  }
+
   public void markCancelled() {
     requireStatus(OrderStatus.PLACED);
     status = OrderStatus.CANCELLED;

@@ -2,6 +2,7 @@ package com.product.ecommerce.order.api;
 
 import com.product.ecommerce.common.response.ApiResponse;
 import com.product.ecommerce.order.service.OrderService;
+import com.product.ecommerce.order.service.PaymentServiceAuthorization;
 import java.security.Principal;
 import java.util.List;
 import java.util.UUID;
@@ -14,14 +15,17 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/v1/orders")
 public class OrderController {
   private final OrderService orderService;
+  private final PaymentServiceAuthorization paymentAuthorization;
 
-  public OrderController(OrderService orderService) {
+  public OrderController(OrderService orderService, PaymentServiceAuthorization paymentAuthorization) {
     this.orderService = orderService;
+    this.paymentAuthorization = paymentAuthorization;
   }
 
   @PostMapping
@@ -43,12 +47,20 @@ public class OrderController {
     return ApiResponse.success("Order retrieved", orderService.getOrder(userId(principal), orderId));
   }
 
+  @PostMapping("/{orderId}/payment-confirmation")
+  public ApiResponse<OrderResponse> confirmPayment(Principal principal,
+      @PathVariable UUID orderId,
+      @RequestHeader("X-Payment-Service-Key") String paymentServiceKey) {
+    if (!paymentAuthorization.isValid(paymentServiceKey)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Payment service authorization required");
+    }
+    return ApiResponse.success("Order marked paid", orderService.confirmPayment(userId(principal), orderId));
+  }
+
   @PostMapping("/{orderId}/cancel")
   public ApiResponse<OrderResponse> cancel(Principal principal, @PathVariable UUID orderId) {
     return ApiResponse.success("Order cancelled", orderService.cancel(userId(principal), orderId));
   }
 
-  private UUID userId(Principal principal) {
-    return UUID.fromString(principal.getName());
-  }
+  private UUID userId(Principal principal) { return UUID.fromString(principal.getName()); }
 }
