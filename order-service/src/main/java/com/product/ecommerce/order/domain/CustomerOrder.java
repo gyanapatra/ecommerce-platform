@@ -75,9 +75,16 @@ public class CustomerOrder {
     touch();
   }
 
+  public void markPaymentPending() {
+    if (status == OrderStatus.PAYMENT_PENDING) return;
+    requireStatus(OrderStatus.PLACED);
+    status = OrderStatus.PAYMENT_PENDING;
+    touch();
+  }
+
   public void markPaid() {
     if (status == OrderStatus.PAID) return;
-    requireStatus(OrderStatus.PLACED);
+    requireStatus(OrderStatus.PAYMENT_PENDING);
     status = OrderStatus.PAID;
     touch();
   }

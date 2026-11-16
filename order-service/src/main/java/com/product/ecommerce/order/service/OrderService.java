@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class OrderService {
@@ -80,11 +81,25 @@ public class OrderService {
     return OrderResponse.from(findOwnedOrder(userId, orderId));
   }
 
-  public OrderResponse confirmPayment(UUID userId, UUID orderId) {
-    CustomerOrder order = findOwnedOrder(userId, orderId);
-    if (order.getStatus() == OrderStatus.PAID) return OrderResponse.from(order);
+  @Transactional
+  public OrderResponse beginPayment(UUID userId, UUID orderId) {
+    CustomerOrder order = findLockedOwnedOrder(userId, orderId);
+    if (order.getStatus() == OrderStatus.PAYMENT_PENDING || order.getStatus() == OrderStatus.PAID) {
+      return OrderResponse.from(order);
+    }
     if (order.getStatus() != OrderStatus.PLACED) {
-      throw new OrderConflictException("Only a placed order can be marked paid");
+      throw new OrderConflictException("Only a placed order can begin payment");
+    }
+    order.markPaymentPending();
+    return OrderResponse.from(orders.saveAndFlush(order));
+  }
+
+  @Transactional
+  public OrderResponse confirmPayment(UUID userId, UUID orderId) {
+    CustomerOrder order = findLockedOwnedOrder(userId, orderId);
+    if (order.getStatus() == OrderStatus.PAID) return OrderResponse.from(order);
+    if (order.getStatus() != OrderStatus.PAYMENT_PENDING) {
+      throw new OrderConflictException("Payment must be pending before an order can be marked paid");
     }
     return OrderResponse.from(orderPersistence.markPaidAndRecord(order));
   }
@@ -104,7 +119,8 @@ public class OrderService {
   }
 
   private OrderResponse resumeOrReturn(CustomerOrder order, String authorization) {
-    if (order.getStatus() == OrderStatus.PLACED || order.getStatus() == OrderStatus.CANCELLED) {
+    if (order.getStatus() == OrderStatus.PLACED || order.getStatus() == OrderStatus.PAYMENT_PENDING
+        || order.getStatus() == OrderStatus.PAID || order.getStatus() == OrderStatus.CANCELLED) {
       return OrderResponse.from(order);
     }
     if (order.getStatus() == OrderStatus.REJECTED) {
@@ -154,10 +170,15 @@ public class OrderService {
     return complete;
   }
 
+  private CustomerOrder findLockedOwnedOrder(UUID userId, UUID orderId) {
+    return orders.findLockedByIdAndUserId(orderId, userId)
+        .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
+  }
   private CustomerOrder findOwnedOrder(UUID userId, UUID orderId) {
     return orders.findByIdAndUserId(orderId, userId)
         .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
   }
 }
+
 
 

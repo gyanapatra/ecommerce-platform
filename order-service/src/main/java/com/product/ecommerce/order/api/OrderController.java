@@ -47,6 +47,15 @@ public class OrderController {
     return ApiResponse.success("Order retrieved", orderService.getOrder(userId(principal), orderId));
   }
 
+  @PostMapping("/{orderId}/payment-start")
+  public ApiResponse<OrderResponse> beginPayment(Principal principal,
+      @PathVariable UUID orderId,
+      @RequestHeader("X-Payment-Service-Key") String paymentServiceKey) {
+    if (!paymentAuthorization.isValid(paymentServiceKey)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Payment service authorization required");
+    }
+    return ApiResponse.success("Order marked payment pending", orderService.beginPayment(userId(principal), orderId));
+  }
   @PostMapping("/{orderId}/payment-confirmation")
   public ApiResponse<OrderResponse> confirmPayment(Principal principal,
       @PathVariable UUID orderId,
