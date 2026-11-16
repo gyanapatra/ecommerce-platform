@@ -3,8 +3,13 @@ package com.product.ecommerce.auth;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import org.junit.jupiter.api.Test;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.UUID;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -12,6 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -41,6 +47,8 @@ class AuthControllerIntegrationTest {
   }
 
   @Autowired private MockMvc mockMvc;
+
+  @Autowired private ObjectMapper objectMapper;
 
   @Test
   void registerUser_shouldReturnCreated() throws Exception {
@@ -156,4 +164,116 @@ class AuthControllerIntegrationTest {
                 .content(loginRequest))
         .andExpect(status().isUnauthorized());
   }
+
+  @Test
+  void refreshTokenRotationRejectsReuseAndRevokesTheTokenFamily() throws Exception {
+    String refreshTokenA = registerAndLoginForRefreshFlow();
+
+    MvcResult rotationResult =
+        mockMvc
+            .perform(
+                post("/api/v1/auth/refresh")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(tokenRequest(refreshTokenA)))
+            .andExpect(status().isOk())
+            .andReturn();
+    String refreshTokenB =
+        objectMapper
+            .readTree(rotationResult.getResponse().getContentAsString())
+            .path("refreshToken")
+            .asText();
+    assertNotEquals(refreshTokenA, refreshTokenB);
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(tokenRequest(refreshTokenA)))
+        .andExpect(status().isUnauthorized());
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(tokenRequest(refreshTokenB)))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void logoutRevokesTheWholeRefreshTokenFamily() throws Exception {
+    String refreshTokenA = registerAndLoginForRefreshFlow();
+    MvcResult rotationResult =
+        mockMvc
+            .perform(
+                post("/api/v1/auth/refresh")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(tokenRequest(refreshTokenA)))
+            .andExpect(status().isOk())
+            .andReturn();
+    String refreshTokenB =
+        objectMapper
+            .readTree(rotationResult.getResponse().getContentAsString())
+            .path("refreshToken")
+            .asText();
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/logout")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(tokenRequest(refreshTokenB)))
+        .andExpect(status().isNoContent());
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(tokenRequest(refreshTokenA)))
+        .andExpect(status().isUnauthorized());
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(tokenRequest(refreshTokenB)))
+        .andExpect(status().isUnauthorized());
+  }
+
+  private String registerAndLoginForRefreshFlow() throws Exception {
+    String email = "refresh-" + UUID.randomUUID() + "@example.com";
+    String password = "StrongPassword123!";
+    String registrationRequest =
+        """
+            {
+              "email": "%s",
+              "password": "%s",
+              "firstName": "Refresh",
+              "lastName": "Tester"
+            }
+            """.formatted(email, password);
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(registrationRequest))
+        .andExpect(status().isCreated());
+
+    MvcResult loginResult =
+        mockMvc
+            .perform(
+                post("/api/v1/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(Map.of("email", email, "password", password))))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    JsonNode response = objectMapper.readTree(loginResult.getResponse().getContentAsString());
+    return response.path("refreshToken").asText();
+  }
+
+  private String tokenRequest(String refreshToken) throws Exception {
+    return objectMapper.writeValueAsString(Map.of("refreshToken", refreshToken));
+  }
 }
+
+
