@@ -47,16 +47,20 @@ class OrderServiceTest {
 
   @BeforeEach
   void configureOrderPersistence() {
-    lenient().when(orderPersistence.markPlacedAndRecord(any())).thenAnswer(invocation -> {
-      CustomerOrder order = invocation.getArgument(0);
-      order.markPlaced();
-      return order;
-    });
-    lenient().when(orderPersistence.markCancelledAndRecord(any())).thenAnswer(invocation -> {
-      CustomerOrder order = invocation.getArgument(0);
-      order.markCancelled();
-      return order;
-    });
+    lenient()
+        .when(orderPersistence.markPlacedAndRecord(any()))
+        .thenAnswer(invocation -> {
+          CustomerOrder order = invocation.getArgument(0);
+          order.markPlaced();
+          return order;
+        });
+    lenient()
+        .when(orderPersistence.markCancelledAndRecord(any()))
+        .thenAnswer(invocation -> {
+          CustomerOrder order = invocation.getArgument(0);
+          order.markCancelled();
+          return order;
+        });
   }
 
   @Test
@@ -65,9 +69,11 @@ class OrderServiceTest {
     UUID idempotencyKey = UUID.randomUUID();
     UUID productId = UUID.randomUUID();
     when(orders.findByUserIdAndIdempotencyKey(userId, idempotencyKey)).thenReturn(Optional.empty());
-    when(cartClient.getCart(AUTHORIZATION)).thenReturn(cart(userId, new CartLineSnapshot(productId, 2)));
+    when(cartClient.getCart(AUTHORIZATION))
+        .thenReturn(cart(userId, new CartLineSnapshot(productId, 2)));
     when(productClient.getProduct(productId)).thenReturn(product(productId, "Headphones", "19.99"));
-    when(orders.saveAndFlush(any(CustomerOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    when(orders.saveAndFlush(any(CustomerOrder.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
 
     OrderResponse response = orderService.checkout(userId, idempotencyKey, AUTHORIZATION);
 
@@ -105,20 +111,31 @@ class OrderServiceTest {
     UUID firstProductId = UUID.randomUUID();
     UUID secondProductId = UUID.randomUUID();
     when(orders.findByUserIdAndIdempotencyKey(userId, key)).thenReturn(Optional.empty());
-    when(cartClient.getCart(AUTHORIZATION)).thenReturn(
-        cart(userId, new CartLineSnapshot(firstProductId, 1), new CartLineSnapshot(secondProductId, 1)));
-    when(productClient.getProduct(firstProductId)).thenReturn(product(firstProductId, "Mouse", "10.00"));
-    when(productClient.getProduct(secondProductId)).thenReturn(product(secondProductId, "Monitor", "100.00"));
-    when(orders.saveAndFlush(any(CustomerOrder.class))).thenAnswer(invocation -> invocation.getArgument(0));
-    org.mockito.Mockito.doAnswer(invocation -> {
-      UUID requestedProductId = invocation.getArgument(0);
-      if (requestedProductId.equals(secondProductId)) {
-        throw new OrderConflictException("Insufficient stock");
-      }
-      return null;
-    }).when(inventoryClient).reserve(any(UUID.class), any(UUID.class), anyInt());
+    when(cartClient.getCart(AUTHORIZATION))
+        .thenReturn(
+            cart(
+                userId,
+                new CartLineSnapshot(firstProductId, 1),
+                new CartLineSnapshot(secondProductId, 1)));
+    when(productClient.getProduct(firstProductId))
+        .thenReturn(product(firstProductId, "Mouse", "10.00"));
+    when(productClient.getProduct(secondProductId))
+        .thenReturn(product(secondProductId, "Monitor", "100.00"));
+    when(orders.saveAndFlush(any(CustomerOrder.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    org.mockito.Mockito.doAnswer(
+            invocation -> {
+              UUID requestedProductId = invocation.getArgument(0);
+              if (requestedProductId.equals(secondProductId)) {
+                throw new OrderConflictException("Insufficient stock");
+              }
+              return null;
+            })
+        .when(inventoryClient)
+        .reserve(any(UUID.class), any(UUID.class), anyInt());
 
-    assertThrows(OrderConflictException.class, () -> orderService.checkout(userId, key, AUTHORIZATION));
+    assertThrows(
+        OrderConflictException.class, () -> orderService.checkout(userId, key, AUTHORIZATION));
 
     ArgumentCaptor<CustomerOrder> saved = ArgumentCaptor.forClass(CustomerOrder.class);
     verify(orders, times(2)).saveAndFlush(saved.capture());
@@ -134,7 +151,7 @@ class OrderServiceTest {
     CustomerOrder order = new CustomerOrder(userId, UUID.randomUUID());
     order.addItem(productId, "Keyboard", 1, new BigDecimal("35.00"));
     order.markPlaced();
-    when(orders.findByIdAndUserId(order.getId(), userId)).thenReturn(Optional.of(order));
+    when(orders.findLockedByIdAndUserId(order.getId(), userId)).thenReturn(Optional.of(order));
 
     OrderResponse response = orderService.cancel(userId, order.getId());
 
@@ -148,6 +165,7 @@ class OrderServiceTest {
   }
 
   private ProductSnapshot product(UUID id, String name, String price) {
-    return new ProductSnapshot(id, "SKU-" + id, name, "Tests", "", new BigDecimal(price), true, null, null);
+    return new ProductSnapshot(
+        id, "SKU-" + id, name, "Tests", "", new BigDecimal(price), true, null, null);
   }
 }
