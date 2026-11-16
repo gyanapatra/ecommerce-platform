@@ -44,6 +44,20 @@ public class OrderClient {
     }
   }
 
+  public void beginPayment(String authorization, UUID orderId) {
+    try {
+      client.post().uri("/api/v1/orders/{id}/payment-start", orderId)
+          .header(HttpHeaders.AUTHORIZATION, authorization)
+          .header("X-Payment-Service-Key", paymentServiceKey)
+          .retrieve().toBodilessEntity();
+    } catch (HttpClientErrorException.Conflict exception) {
+      throw new PaymentConflictException("Order Service rejected this payment transition");
+    } catch (HttpClientErrorException exception) {
+      throw new BusinessException("Order Service could not start payment", exception);
+    } catch (RestClientException exception) {
+      throw new DownstreamServiceException("Order Service is unavailable", exception);
+    }
+  }
   public void confirmPayment(String authorization, UUID orderId) {
     try {
       client.post().uri("/api/v1/orders/{id}/payment-confirmation", orderId)
@@ -59,3 +73,4 @@ public class OrderClient {
     }
   }
 }
+

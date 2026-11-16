@@ -333,7 +333,7 @@ The default Gateway port is 8090. Keep both Auth Service and API Gateway running
 
 Create `ecommerce_member` and `ecommerce_payment` databases as shown above. Start `member-service` on port 8087 and `payment-service` on port 8088 with the same `JWT_SECRET` as the Gateway and Auth Service. Start `order-service` with the matching `PAYMENT_SERVICE_INTERNAL_KEY`; Payment Service must receive that same key. For local development, generate a key once and copy the same value into both run configurations. Set `MEMBER_SERVICE_URL` and `PAYMENT_SERVICE_URL` on the Gateway only when using non-default addresses.
 
-Checkout places and reserves the order, then the storefront calls Payment Service with the order UUID as the idempotency key. The local `MOCK` provider returns a stable reference and never sends card details. Payment Service confirms the order through the protected internal Order Service endpoint; Order Service emits an `ORDER_PAID` outbox event so Notification Service can deliver the payment update. If payment is pending, the order remains `PLACED` and can be retried from order history.
+Checkout places and reserves the order, then the storefront calls Payment Service with the order UUID as the idempotency key. The local `MOCK` provider returns a stable reference and never sends card details. Payment Service confirms the order through the protected internal Order Service endpoint; Order Service emits an `ORDER_PAID` outbox event so Notification Service can deliver the payment update. When payment starts, the order becomes `PAYMENT_PENDING` so cancellation cannot race with a provider charge. Payment retries remain available from order history.
 
 ## Local Kafka and Redis
 
@@ -400,7 +400,8 @@ Create the `ecommerce_order` PostgreSQL database, configure `DB_URL`, `DB_USERNA
 | `POST` | `/api/v1/orders` | Create an order from the current cart; requires `Idempotency-Key` |
 | `GET` | `/api/v1/orders` | List orders for the authenticated user |
 | `GET` | `/api/v1/orders/{orderId}` | Retrieve an owned order |
-| `POST` | `/api/v1/orders/{orderId}/payment-confirmation` | Internal Payment Service confirmation; requires the service key |
+| `POST` | `/api/v1/orders/{orderId}/payment-start` | Reserve the order for payment; internal Payment Service key required |
+| `POST` | `/api/v1/orders/{orderId}/payment-confirmation` | Confirm payment; internal Payment Service key required |
 | `POST` | `/api/v1/orders/{orderId}/cancel` | Cancel an unpaid placed order and release its inventory reservations |
 
 Orders snapshot product names, quantities, unit prices, and totals.
@@ -641,6 +642,7 @@ git commit -m "test(gateway): add JWT validation tests"
 ## License
 
 A license has not yet been selected. Until a license is added, reuse and redistribution are subject to applicable copyright law.
+
 
 
 

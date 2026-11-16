@@ -103,8 +103,9 @@ public class OrderService {
     }
     return OrderResponse.from(orderPersistence.markPaidAndRecord(order));
   }
+  @Transactional
   public OrderResponse cancel(UUID userId, UUID orderId) {
-    CustomerOrder order = findOwnedOrder(userId, orderId);
+    CustomerOrder order = findLockedOwnedOrder(userId, orderId);
     if (order.getStatus() == OrderStatus.CANCELLED) {
       return OrderResponse.from(order);
     }
@@ -179,6 +180,7 @@ public class OrderService {
         .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderId));
   }
 }
+
 
 
 

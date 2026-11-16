@@ -43,7 +43,7 @@ public class PaymentService {
 
     OrderSnapshot order = orderClient.getOrder(authorization, request.orderId());
     if (!order.userId().equals(userId)) throw new ResourceNotFoundException("Order not found");
-    if (!"PLACED".equals(order.status())) {
+    if (!"PLACED".equals(order.status()) && !"PAYMENT_PENDING".equals(order.status())) {
       throw new PaymentConflictException("Only placed orders can be paid");
     }
     BigDecimal amount = order.totalAmount();
@@ -75,8 +75,10 @@ public class PaymentService {
 
   private PaymentResponse settle(Payment payment, String authorization) {
     if (payment.getStatus() == PaymentStatus.SUCCEEDED) return PaymentResponse.from(payment);
+    orderClient.beginPayment(authorization, payment.getOrderId());
     PaymentReceipt receipt = provider.charge(payment.getIdempotencyKey(), payment.getAmount(), payment.getCurrency());
     orderClient.confirmPayment(authorization, payment.getOrderId());
     return PaymentResponse.from(persistence.markSucceeded(payment.getId(), receipt.reference()));
   }
 }
+

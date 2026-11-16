@@ -9,10 +9,13 @@ import org.junit.jupiter.api.Test;
 
 class CustomerOrderPaymentTest {
   @Test
-  void paidOrderIsIdempotentAndCannotBeCancelled() {
+  void paymentPendingAndPaidOrdersCannotBeCancelled() {
     CustomerOrder order = new CustomerOrder(UUID.randomUUID(), UUID.randomUUID());
     order.addItem(UUID.randomUUID(), "Sample", 1, new BigDecimal("12.50"));
     order.markPlaced();
+
+    order.markPaymentPending();
+    assertThrows(IllegalStateException.class, order::markCancelled);
 
     order.markPaid();
     order.markPaid();

@@ -17,8 +17,9 @@ The Angular dev server proxies `/api` to `http://localhost:8090`. For another ga
 - `POST /api/v1/auth/refresh` and `POST /api/v1/auth/logout` use the refresh token request body.
 - `GET /api/v1/products` — unwraps `ApiResponse<List<ProductResponse>>` and drives search, category tabs and product cards.
 - `GET`, `POST`, `PUT /items/{productId}`, and `DELETE /items/{productId}` under `/api/v1/cart` manage the authenticated customer's persistent bag.
-- `POST /api/v1/orders` places an order with a fresh UUID `Idempotency-Key`; `POST /api/v1/payments` completes local mock payment with the order ID as its stable idempotency key. Orders can be paid again from order history while they remain `PLACED`.
+- `POST /api/v1/orders` places an order with a fresh UUID `Idempotency-Key`; `POST /api/v1/payments` completes local mock payment with the order ID as its stable idempotency key. Orders can be paid again from order history while they remain `PLACED` or `PAYMENT_PENDING`.
 - `GET` and `PUT /api/v1/members/me` retrieve and save the signed-in member profile; Member Service owns the member number and membership status.
 
-Inventory is reserved during checkout. The storefront then completes a local mock payment; a placed but unpaid order remains in order history with a retry action. Successful payment marks the order `PAID` and emits an order event for Notification Service. This mock provider does not collect card data or contact a payment network. The frontend keeps the newsletter interaction local and does not imply that a signup was submitted.
+Inventory is reserved during checkout. The storefront then completes a local mock payment; an unpaid order remains in order history with a retry action. The backend marks it `PAYMENT_PENDING` before the provider is called, which prevents cancellation from racing with a charge. Successful payment marks the order `PAID` and emits an order event for Notification Service. This mock provider does not collect card data or contact a payment network. The frontend keeps the newsletter interaction local and does not imply that a signup was submitted.
+
 
