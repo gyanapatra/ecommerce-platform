@@ -2,6 +2,12 @@ package com.product.ecommerce.gateway.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpMethod;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.reactive.CorsConfigurationSource;
+import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
+import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
@@ -19,7 +25,8 @@ public class SecurityConfig {
 
   @Bean
   public SecurityWebFilterChain securityWebFilterChain(
-      ServerHttpSecurity http, ReactiveAuthenticationManager authenticationManager) {
+      ServerHttpSecurity http, ReactiveAuthenticationManager authenticationManager,
+      CorsConfigurationSource corsConfigurationSource) {
 
     AuthenticationWebFilter jwtFilter = new AuthenticationWebFilter(authenticationManager);
 
@@ -30,6 +37,8 @@ public class SecurityConfig {
     jwtFilter.setRequiresAuthenticationMatcher(ServerWebExchangeMatchers.pathMatchers("/api/**"));
 
     return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
+        .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
+        .cors(cors -> cors.configurationSource(corsConfigurationSource))
         .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
         .authorizeExchange(exchange ->
             exchange
@@ -51,6 +60,20 @@ public class SecurityConfig {
         .build();
   }
 
+  @Bean
+  public CorsConfigurationSource corsConfigurationSource(
+      @Value("${app.cors.allowed-origin:http://localhost:4200}") String allowedOrigin) {
+    CorsConfiguration configuration = new CorsConfiguration();
+    configuration.setAllowedOrigins(List.of(allowedOrigin));
+    configuration.setAllowedMethods(List.of(
+        HttpMethod.GET.name(), HttpMethod.POST.name(), HttpMethod.PUT.name(),
+        HttpMethod.DELETE.name(), HttpMethod.OPTIONS.name()));
+    configuration.setAllowedHeaders(List.of(HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE, "Idempotency-Key"));
+    configuration.setAllowCredentials(false);
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/**", configuration);
+    return source;
+  }
   private ServerAuthenticationConverter bearerTokenConverter() {
 
     return exchange -> {

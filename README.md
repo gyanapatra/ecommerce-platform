@@ -45,7 +45,7 @@ The project demonstrates production-oriented backend engineering practices, incl
 | Messaging | Apache Kafka (order lifecycle events) |
 | Caching | Redis (Product Catalog read cache) |
 | Planned deployment | Docker, Kubernetes |
-| Planned frontend | Angular |
+| Frontend | Angular 22 |
 
 Kafka messaging and Redis caching are now used by the local backend. Cloud deployment remains optional and is not required for local development.
 
@@ -571,9 +571,9 @@ Additional security hardening, automated security tests, and production deployme
 
 ### Phase 6 — Frontend
 
-- [ ] Develop a professional, user-friendly Angular storefront aligned with the catalog, authentication, cart, checkout, order-history, and notification APIs.
-- [ ] Integrate frontend authentication.
-- [ ] Implement shopping, checkout, and order-tracking workflows.
+- [x] Develop a professional Angular storefront in `frontend/`, aligned with catalog, authentication, cart, checkout, order history, and notification APIs.
+- [x] Integrate frontend authentication and token refresh.
+- [x] Implement shopping, checkout, order history, and order notifications. Payment processing remains a backend follow-up.
 
 ## Engineering Goals
 
