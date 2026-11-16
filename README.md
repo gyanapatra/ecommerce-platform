@@ -4,21 +4,22 @@ A scalable, secure, and cloud-ready e-commerce platform built using Java 21, Spr
 
 The project demonstrates production-oriented backend engineering practices, including centralized dependency management, JWT-based authentication, refresh-token management, database migrations, API gateway security, automated testing, and cloud-native development.
 
-> **Project status:** Active development. The Maven multi-module foundation, Auth Service, API Gateway, Product Catalog Service, Inventory Service, Shopping Cart Service, Order Service, and Notification Service are implemented. Auth Service registration, login, refresh-token functionality, logout, and protected-user functionality are available. The API Gateway routes authentication requests to Auth Service and validates JWTs reactively. Four Gateway JWT unit tests have passed. Registration and login through the Gateway, plus valid/unauthorized protected-request scenarios, have also been manually verified.
+> **Project status:** Active development. The Maven multi-module foundation, Auth Service, Member Service, API Gateway, Product Catalog Service, Inventory Service, Shopping Cart Service, Order Service, Payment Service, and Notification Service are implemented. Auth Service registration, login, refresh-token functionality, logout, and protected-user functionality are available. The API Gateway routes requests to all application services and validates JWTs reactively. Four Gateway JWT unit tests have passed. Registration and login through the Gateway, plus valid/unauthorized protected-request scenarios, have also been manually verified.
 
 ## Key Features
 
 - **JWT authentication:** Token-based authentication for securing APIs.
-- **User registration and login:** Authentication endpoints for user access.
+- **User accounts and membership:** Auth Service owns credentials and tokens; Member Service owns each signed-in user profile, member number, and membership tier.
 - **Refresh-token management:** Persistent refresh tokens with expiration handling.
 - **Logout endpoint:** Logout functionality is implemented; dedicated integration coverage for revocation is still planned.
-- **API Gateway:** Spring Cloud Gateway Server WebFlux routes authentication, product, inventory, cart, and order requests to their services.
+- **API Gateway:** Spring Cloud Gateway Server WebFlux routes authentication, member, product, inventory, cart, order, payment, and notification requests to their services.
 - **Inventory Service:** Maintains per-product on-hand stock, reserves quantities, and supports idempotent adjustments, commits, and releases.
 - **Shopping Cart Service:** Stores product quantities for each authenticated customer and validates JWTs independently of the Gateway.
-- **Order Service:** Checks out the authenticated customer's cart, snapshots catalog prices, coordinates inventory reservations, and records lifecycle events in a transactional outbox.
+- **Order Service:** Checks out the authenticated customer's cart, snapshots catalog prices, coordinates inventory reservations, and records lifecycle events in a transactional outbox. Paid orders cannot be cancelled.
+- **Payment Service:** Uses a provider-neutral payment adapter with an idempotent local mock provider; the order total always comes from Order Service.
 - **Reactive JWT validation:** Gateway validates JWT signatures and expiration and establishes authenticated user identity and role authorities.
 - **Protected APIs:** Spring Security integration with JWT authentication filters in Auth Service and reactive authentication at the Gateway.
-- **Notification Service:** Consumes order events and stores customer notifications idempotently; authenticated users can list and mark notifications as read.
+- **Notification Service:** Consumes placed, paid, and cancelled order events and stores customer notifications idempotently; authenticated users can list and mark notifications as read.
 - **Redis product caching:** Product detail and list reads use Redis with short TTLs; product writes invalidate both caches.
 - **Global exception handling:** Authentication and request errors are mapped to HTTP responses.
 - **Database versioning:** Flyway migrations manage database schema changes.
@@ -93,6 +94,14 @@ ecommerce-platform/
 │   ├── src/main/java/com/product/ecommerce/order/
 │   ├── src/main/resources/db/migration/
 │   └── pom.xml
+├── member-service/
+│   ├── src/main/java/com/product/ecommerce/member/
+│   ├── src/main/resources/db/migration/
+│   └── pom.xml
+├── payment-service/
+│   ├── src/main/java/com/product/ecommerce/payment/
+│   ├── src/main/resources/db/migration/
+│   └── pom.xml
 ├── product-service/
 │   ├── src/main/java/com/product/ecommerce/product/
 │   ├── src/main/resources/db/migration/
@@ -115,7 +124,7 @@ The structure above illustrates the current project organization. Additional dir
 
 **API Gateway**
 
-Provides the external entry point for routed API requests. It routes Auth, Product, Inventory, Cart, and Order APIs to their services and validates bearer JWTs using Spring Security WebFlux before forwarding protected requests.
+Provides the external entry point for routed API requests. It routes Auth, Member, Product, Inventory, Cart, Order, Payment, and Notification APIs to their services and validates bearer JWTs using Spring Security WebFlux before forwarding protected requests.
 
 **Auth Service**
 
@@ -187,12 +196,16 @@ When the access token expires, the client can use the refresh token with the Aut
 | Component | Default local port | Purpose |
 |---|---:|---|
 | PostgreSQL | 5432 | Separate persistence databases for each service |
-| Auth Service | 8081 | Authentication endpoints and protected user endpoint |
-| API Gateway | 8090 | Client-facing gateway and route forwarding |
+| Auth Service | 8081 | Registration, sign-in, tokens, and protected user endpoint |
+| Member Service | 8087 | Signed-in member profile and membership |
+| API Gateway instance 1 | 8090 | Gateway service |
+| API Gateway instance 2 | 8091 | Gateway service |
+| Front-door load balancer | 8092 | Client-facing NGINX entry point |
 | Product Catalog Service | 8082 | Product catalog APIs |
 | Inventory Service | 8083 | Stock and reservation APIs |
 | Shopping Cart Service | 8084 | Authenticated customer carts |
-| Order Service | 8085 | Checkout, order history, inventory reservations, and outbox publication |
+| Order Service | 8085 | Checkout, order history, inventory reservations, payment confirmation, and outbox publication |
+| Payment Service | 8088 | Idempotent local mock payment processing |
 | Notification Service | 8086 | Authenticated order notifications |
 | Redis | 6379 | Product Catalog read cache |
 | Kafka | 9092 | Local order event broker |
@@ -203,13 +216,7 @@ The API Gateway health endpoint is available at:
 http://localhost:8090/actuator/health
 ```
 
-The current Gateway route forwards:
-
-```text
-/api/v1/auth/**
-```
-
-to the Auth Service at `http://localhost:8081` by default. These values can be overridden using `AUTH_SERVICE_URL` and `SERVER_PORT`.
+The Gateway routes `/api/v1/auth/**`, `/api/v1/members/**`, `/api/v1/products/**`, `/api/v1/inventory/**`, `/api/v1/cart/**`, `/api/v1/orders/**`, `/api/v1/payments/**`, and `/api/v1/notifications/**` to their matching services. Member and payment defaults are `http://localhost:8087` and `http://localhost:8088`. These values can be overridden using `AUTH_SERVICE_URL` and `SERVER_PORT`.
 
 ## Getting Started
 
@@ -233,20 +240,22 @@ cd ecommerce-platform
 
 ### 2. Configure PostgreSQL
 
-Create the authentication database and a dedicated database user.
+Create the database user and one database per service.
 
 Example SQL:
 
 ```sql
 CREATE USER ecommerce_user WITH PASSWORD 'change-me';
 CREATE DATABASE ecommerce_auth OWNER ecommerce_user;
+CREATE DATABASE ecommerce_member OWNER ecommerce_user;
+CREATE DATABASE ecommerce_payment OWNER ecommerce_user;
 ```
 
 Replace the example password with a secure local password.
 
 ### 3. Configure Environment Variables
 
-Configure the environment variables required by `auth-service/src/main/resources/application.yml`.
+Configure `JWT_SECRET` consistently for Auth Service, the Gateway, Member Service, Payment Service, and every other JWT-validating service. Configure database credentials for each service.
 
 Typical Auth Service settings include:
 
@@ -257,7 +266,7 @@ DB_PASSWORD=your-local-database-password
 JWT_SECRET=your-base64-encoded-secret
 ```
 
-The API Gateway also requires the same `JWT_SECRET` value. Its `application.yml` maps that environment variable to `app.jwt.secret`. The Gateway can additionally use:
+The API Gateway and all resource services also require that same `JWT_SECRET` value. Configure the payment confirmation key with one shared, random value in both Order Service and Payment Service: `PAYMENT_SERVICE_INTERNAL_KEY`. Payment confirmation fails closed when the key is missing or does not match. Keep both secrets out of source control. The Gateway can additionally use:
 
 ```text
 AUTH_SERVICE_URL=http://localhost:8081
@@ -319,6 +328,12 @@ mvn spring-boot:run -pl api-gateway
 ```
 
 The default Gateway port is 8090. Keep both Auth Service and API Gateway running.
+
+### 7. Start Member and Payment Services
+
+Create `ecommerce_member` and `ecommerce_payment` databases as shown above. Start `member-service` on port 8087 and `payment-service` on port 8088 with the same `JWT_SECRET` as the Gateway and Auth Service. Start `order-service` with the matching `PAYMENT_SERVICE_INTERNAL_KEY`; Payment Service must receive that same key. For local development, generate a key once and copy the same value into both run configurations. Set `MEMBER_SERVICE_URL` and `PAYMENT_SERVICE_URL` on the Gateway only when using non-default addresses.
+
+Checkout places and reserves the order, then the storefront calls Payment Service with the order UUID as the idempotency key. The local `MOCK` provider returns a stable reference and never sends card details. Payment Service confirms the order through the protected internal Order Service endpoint; Order Service emits an `ORDER_PAID` outbox event so Notification Service can deliver the payment update. If payment is pending, the order remains `PLACED` and can be retried from order history.
 
 ## Local Kafka and Redis
 
@@ -385,14 +400,36 @@ Create the `ecommerce_order` PostgreSQL database, configure `DB_URL`, `DB_USERNA
 | `POST` | `/api/v1/orders` | Create an order from the current cart; requires `Idempotency-Key` |
 | `GET` | `/api/v1/orders` | List orders for the authenticated user |
 | `GET` | `/api/v1/orders/{orderId}` | Retrieve an owned order |
-| `POST` | `/api/v1/orders/{orderId}/cancel` | Cancel a placed order and release its inventory reservations |
+| `POST` | `/api/v1/orders/{orderId}/payment-confirmation` | Internal Payment Service confirmation; requires the service key |
+| `POST` | `/api/v1/orders/{orderId}/cancel` | Cancel an unpaid placed order and release its inventory reservations |
 
 Orders snapshot product names, quantities, unit prices, and totals.
-Placed and cancelled transitions write order events to the PostgreSQL outbox in the same database transaction. A background publisher retries unpublished records and sends them to Kafka; delivery is at-least-once, so consumers de-duplicate by event ID. Payment processing is not connected yet; placed orders keep stock reserved until cancellation or later payment integration.
+Every order state change is written to the PostgreSQL outbox in the same database transaction. A background publisher retries unpublished records and sends them to Kafka; delivery is at-least-once, so consumers de-duplicate by event ID. Payment confirmation is integrated: successful payments mark orders paid, publish an outbox event, and notify customers. Unpaid placed orders keep stock reserved and can be cancelled.
 
+## Member Service
+
+Member Service owns customer profile details and membership metadata, keyed by the authenticated Auth Service user UUID. It uses its own `ecommerce_member` PostgreSQL database and Flyway migration. A profile is created or updated with `PUT`; member number, tier, and status are generated and managed by the service. Requests require a valid JWT through the Gateway.
+
+| Method | Path | Behavior |
+|---|---|---|
+| `GET` | `/api/v1/members/me` | Retrieve the signed-in member profile (`404` before profile creation) |
+| `PUT` | `/api/v1/members/me` | Create or update first name, last name, and optional phone number |
+
+The storefront’s Member screen lets the signed-in customer create or edit their profile. The service does not store credentials; Auth Service remains the identity and token owner.
+
+## Payment Service
+
+Payment Service owns payment attempts in its own `ecommerce_payment` PostgreSQL database. It currently registers a provider-neutral `PaymentProvider` interface with a deterministic local `MOCK` implementation. It does not accept client-supplied amounts or card details. It loads the owned order and authoritative total from Order Service, permits payment only while the order is `PLACED`, and enforces one payment per order plus idempotent retries.
+
+| Method | Path | Behavior |
+|---|---|---|
+| `POST` | `/api/v1/payments` | Create or retry payment; requires `Idempotency-Key` and `{ "orderId": "…", "paymentMethod": "MOCK" }` |
+| `GET` | `/api/v1/payments/{paymentId}` | Retrieve an owned payment |
+
+Both Order Service and Payment Service must receive the same private `PAYMENT_SERVICE_INTERNAL_KEY`. Payment Service supplies it when confirming a payment; Order Service fails closed if it is absent or incorrect. The customer token is also forwarded, and Order Service checks that the customer owns the order. Successful confirmation marks the order `PAID`; the outbox publishes `ORDER_PAID` for Notification Service. This mock provider is for local development only and does not contact a payment network.
 ## Notification Service
 
-Notification Service consumes ORDER_PLACED and ORDER_CANCELLED records from ecommerce.order-events.v1 and stores one in-app notification per event ID. Kafka retries a failed message three times and then routes it to ecommerce.order-events.v1.DLT for inspection. The consumer persists before its offset is committed, and the unique event ID makes redelivery safe.
+Notification Service consumes ORDER_PLACED, ORDER_PAID, and ORDER_CANCELLED records from ecommerce.order-events.v1 and stores one in-app notification per event ID. Kafka retries a failed message three times and then routes it to ecommerce.order-events.v1.DLT for inspection. The consumer persists before its offset is committed, and the unique event ID makes redelivery safe.
 
 Create the ecommerce_notification PostgreSQL database, configure DB_URL, DB_USERNAME, DB_PASSWORD, and the same JWT_SECRET as Auth Service, start Kafka, then run mvn spring-boot:run -pl notification-service (default port 8086). In Postman, run Order Management first to create a notification, then run the Notification Service folder. The Gateway forwards /api/v1/notifications/** to NOTIFICATION_SERVICE_URL (default http://localhost:8086).
 
@@ -405,7 +442,7 @@ Notifications are persisted in this service's database. No email provider or clo
 
 ## API Overview
 
-The Auth Service currently includes registration, login, refresh-token functionality, logout, and protected-user functionality. Notification Service adds authenticated in-app order notifications. The API Gateway routes authentication, Product, Inventory, Cart, Order, and Notification API requests to their corresponding services.
+The Auth Service currently includes registration, login, refresh-token functionality, logout, and protected-user functionality. Notification Service adds authenticated in-app order notifications. The API Gateway routes Auth, Member, Product, Inventory, Cart, Order, Payment, and Notification API requests to their corresponding services.
 
 | Capability | Purpose |
 |---|---|
@@ -545,11 +582,11 @@ Additional security hardening, automated security tests, and production deployme
 
 ### Phase 3 — E-Commerce Microservices
 
-- [ ] User and Member Service
+- [x] User and Member Service
 - [x] Product Catalog Service
 - [x] Shopping Cart Service
 - [x] Order Service
-- [ ] Payment Service
+- [x] Payment Service
 - [x] Inventory Service
 - [x] Notification Service
 
@@ -604,3 +641,8 @@ git commit -m "test(gateway): add JWT validation tests"
 ## License
 
 A license has not yet been selected. Until a license is added, reuse and redistribution are subject to applicable copyright law.
+
+
+
+
+
