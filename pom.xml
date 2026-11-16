@@ -65,17 +65,20 @@
 		<module>ecommerce-bom</module>
 		<module>common</module>
 		<module>auth-service</module>
+		<module>member-service</module>
 		<module>api-gateway</module>
 		<module>product-service</module>
 		<module>inventory-service</module>
 		<module>cart-service</module>
 		<module>order-service</module>
+		<module>payment-service</module>
         <module>notification-service</module>
 
 		<!--
 		
         <module>common</module>
         <module>auth-service</module>
+		<module>member-service</module>
         <module>api-gateway</module>
 		<module>product-service</module>
         <module>user-service</module>
@@ -83,6 +86,7 @@
         <module>inventory-service</module>
         <module>cart-service</module>
         <module>order-service</module>
+		<module>payment-service</module>
         <module>notification-service</module>
         <module>payment-service</module>
         <module>notification-service</module>

@@ -54,6 +54,7 @@ public class NotificationService {
   private String messageFor(OrderEvent event) {
     return switch (event.eventType()) {
       case OrderEvent.ORDER_PLACED -> "Your order " + event.orderId() + " has been placed.";
+      case OrderEvent.ORDER_PAID -> "Payment for order " + event.orderId() + " was successful.";
       case OrderEvent.ORDER_CANCELLED -> "Your order " + event.orderId() + " has been cancelled.";
       default -> "There is an update for your order " + event.orderId() + ".";
     };
