@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "b6b83d7f-4800-4a87-8078-a8a39376f09a",
     "name": "ePlatform-App - Auth Refresh & Logout Flow",
-    "description": "End-to-end tests for Auth refresh-token rotation, logout, Gateway instances, Product Catalog, Inventory stock and reservations, authenticated Shopping Cart and Order workflows, and order notifications. Set email and password in a local Postman environment.",
+    "description": "End-to-end Gateway tests for auth refresh-token rotation, logout, load balancing, catalog, inventory, cart, orders, member profile, mock payments, and notifications. Set email and password in a local Postman environment.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "59064590",
     "_collection_link": "https://go.postman.co/collection/59064590-b6b83d7f-4800-4a87-8078-a8a39376f09a?source=collection_link"
@@ -3126,6 +3126,454 @@
         }
       ],
       "description": "Smoke tests for the NGINX front door at http://localhost:8092. Run requests in order; the login request captures a token for the protected current-user request."
+    },
+    {
+      "name": "Member and Payment",
+      "description": "Gateway end-to-end flow for the authenticated member profile and local mock payment. Requires the services and database setup documented in README.md.",
+      "item": [
+        {
+          "name": "00 - Login and prepare test data",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"{{email}}\",\"password\":\"{{password}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login succeeds',function(){pm.response.to.have.status(200);});\nconst b=pm.response.json();\npm.collectionVariables.set('memberPaymentAccessToken',b.accessToken);\npm.collectionVariables.set('paymentSku',pm.variables.replaceIn('{{$guid}}').replace(/-/g,'').slice(0,12));\npm.collectionVariables.set('paymentCheckoutKey',pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              },
+              "listen": "test"
+            }
+          ]
+        },
+        {
+          "name": "01 - Create product for payment checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{memberPaymentAccessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/products"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"sku\":\"PAY-{{paymentSku}}\",\"name\":\"Payment test item\",\"category\":\"Home\",\"description\":\"Local payment flow test\",\"price\":42.50,\"active\":true}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product created',function(){pm.response.to.have.status(201);}); pm.collectionVariables.set('paymentProductId',pm.response.json().data.id);"
+                ]
+              },
+              "listen": "test"
+            }
+          ]
+        },
+        {
+          "name": "02 - Add stock",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{memberPaymentAccessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/inventory/{{paymentProductId}}/adjustments"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"adjustmentId\":\"{{paymentCheckoutKey}}\",\"quantityDelta\":3}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Stock added',function(){pm.response.to.have.status(200);});"
+                ]
+              },
+              "listen": "test"
+            }
+          ]
+        },
+        {
+          "name": "03 - Clear cart before checkout",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{memberPaymentAccessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cart/items"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cart cleared',function(){pm.response.to.have.status(200);});"
+                ]
+              },
+              "listen": "test"
+            }
+          ]
+        },
+        {
+          "name": "04 - Add test item to cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{memberPaymentAccessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cart/items"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"productId\":\"{{paymentProductId}}\",\"quantity\":1}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Item added to cart',function(){pm.response.to.have.status(200);});"
+                ]
+              },
+              "listen": "test"
+            }
+          ]
+        },
+        {
+          "name": "05 - Place order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{memberPaymentAccessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{paymentCheckoutKey}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Order placed',function(){pm.response.to.have.status(201);}); const d=pm.response.json().data; pm.expect(d.status).to.eql('PLACED'); pm.collectionVariables.set('paymentOrderId',d.id);"
+                ]
+              },
+              "listen": "test"
+            }
+          ]
+        },
+        {
+          "name": "06 - Complete mock payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{memberPaymentAccessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"orderId\":\"{{paymentOrderId}}\",\"paymentMethod\":\"MOCK\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Mock payment succeeds',function(){pm.response.to.have.status(200);}); const d=pm.response.json().data; pm.expect(d.status).to.eql('SUCCEEDED'); pm.expect(d.provider).to.eql('MOCK'); pm.collectionVariables.set('paymentId',d.id);"
+                ]
+              },
+              "listen": "test"
+            }
+          ]
+        },
+        {
+          "name": "07 - Retry payment idempotently",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{memberPaymentAccessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payments"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"orderId\":\"{{paymentOrderId}}\",\"paymentMethod\":\"MOCK\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Payment retry succeeds',function(){pm.response.to.have.status(200);}); pm.expect(pm.response.json().data.id).to.eql(pm.collectionVariables.get('paymentId'));"
+                ]
+              },
+              "listen": "test"
+            }
+          ]
+        },
+        {
+          "name": "08 - Verify paid order",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{memberPaymentAccessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/orders/{{paymentOrderId}}"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Order is paid',function(){pm.response.to.have.status(200); pm.expect(pm.response.json().data.status).to.eql('PAID');});"
+                ]
+              },
+              "listen": "test"
+            }
+          ]
+        },
+        {
+          "name": "09 - Create or update member profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{memberPaymentAccessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/members/me"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"firstName\":\"Postman\",\"lastName\":\"Member\",\"phoneNumber\":\"+15555550123\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Member profile saved',function(){pm.response.to.have.status(200);}); const d=pm.response.json().data; pm.expect(d.memberNumber).to.match(/^MEM-/); pm.expect(d.tier).to.eql('STANDARD');"
+                ]
+              },
+              "listen": "test"
+            }
+          ]
+        },
+        {
+          "name": "10 - Read member profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{memberPaymentAccessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/members/me"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Member profile belongs to signed-in user',function(){pm.response.to.have.status(200); pm.expect(pm.response.json().data.firstName).to.eql('Postman');});"
+                ]
+              },
+              "listen": "test"
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [
@@ -3303,6 +3751,36 @@
     },
     {
       "key": "loadBalancerAccessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "memberPaymentAccessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentSku",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentCheckoutKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentProductId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentOrderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentId",
       "value": "",
       "type": "string"
     }
