@@ -23,25 +23,30 @@ public class NotificationService {
     if (notifications.existsByEventId(event.eventId())) {
       return;
     }
-    notifications.saveAndFlush(new CustomerNotification(
-        event.eventId(),
-        event.userId(),
-        event.orderId(),
-        event.eventType(),
-        messageFor(event),
-        event.occurredAt()));
+    notifications.saveAndFlush(
+        new CustomerNotification(
+            event.eventId(),
+            event.userId(),
+            event.orderId(),
+            event.eventType(),
+            messageFor(event),
+            event.occurredAt()));
   }
 
   @Transactional(readOnly = true)
   public List<NotificationResponse> listForUser(UUID userId) {
     return notifications.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
-        .map(NotificationResponse::from).toList();
+        .map(NotificationResponse::from)
+        .toList();
   }
 
   @Transactional
   public NotificationResponse markRead(UUID userId, UUID notificationId) {
-    CustomerNotification notification = notifications.findByIdAndUserId(notificationId, userId)
-        .orElseThrow(() -> new ResourceNotFoundException("Notification not found: " + notificationId));
+    CustomerNotification notification =
+        notifications
+            .findByIdAndUserId(notificationId, userId)
+            .orElseThrow(
+                () -> new ResourceNotFoundException("Notification not found: " + notificationId));
     notification.markRead();
     return NotificationResponse.from(notifications.save(notification));
   }

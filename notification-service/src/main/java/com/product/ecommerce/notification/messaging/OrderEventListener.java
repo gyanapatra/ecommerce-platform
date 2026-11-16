@@ -8,7 +8,11 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(prefix = "app.kafka", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(
+    prefix = "app.kafka",
+    name = "enabled",
+    havingValue = "true",
+    matchIfMissing = true)
 public class OrderEventListener {
   private final ObjectMapper objectMapper;
   private final NotificationService notifications;

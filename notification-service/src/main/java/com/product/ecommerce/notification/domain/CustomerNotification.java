@@ -37,8 +37,13 @@ public class CustomerNotification {
 
   protected CustomerNotification() {}
 
-  public CustomerNotification(UUID eventId, UUID userId, UUID orderId, String eventType,
-      String message, Instant createdAt) {
+  public CustomerNotification(
+      UUID eventId,
+      UUID userId,
+      UUID orderId,
+      String eventType,
+      String message,
+      Instant createdAt) {
     this.id = UUID.randomUUID();
     this.eventId = eventId;
     this.userId = userId;
@@ -53,12 +58,35 @@ public class CustomerNotification {
     read = true;
   }
 
-  public UUID getId() { return id; }
-  public UUID getEventId() { return eventId; }
-  public UUID getUserId() { return userId; }
-  public UUID getOrderId() { return orderId; }
-  public String getEventType() { return eventType; }
-  public String getMessage() { return message; }
-  public boolean isRead() { return read; }
-  public Instant getCreatedAt() { return createdAt; }
+  public UUID getId() {
+    return id;
+  }
+
+  public UUID getEventId() {
+    return eventId;
+  }
+
+  public UUID getUserId() {
+    return userId;
+  }
+
+  public UUID getOrderId() {
+    return orderId;
+  }
+
+  public String getEventType() {
+    return eventType;
+  }
+
+  public String getMessage() {
+    return message;
+  }
+
+  public boolean isRead() {
+    return read;
+  }
+
+  public Instant getCreatedAt() {
+    return createdAt;
+  }
 }

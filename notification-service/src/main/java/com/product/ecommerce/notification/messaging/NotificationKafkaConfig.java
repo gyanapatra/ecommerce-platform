@@ -16,7 +16,11 @@ import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.util.backoff.FixedBackOff;
 
 @Configuration
-@ConditionalOnProperty(prefix = "app.kafka", name = "enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(
+    prefix = "app.kafka",
+    name = "enabled",
+    havingValue = "true",
+    matchIfMissing = true)
 public class NotificationKafkaConfig {
   @Bean
   NewTopic orderEventsTopic() {
@@ -30,9 +34,10 @@ public class NotificationKafkaConfig {
 
   @Bean
   DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<String, String> kafkaTemplate) {
-    DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
-        kafkaTemplate,
-        (record, exception) -> new TopicPartition(record.topic() + ".DLT", record.partition()));
+    DeadLetterPublishingRecoverer recoverer =
+        new DeadLetterPublishingRecoverer(
+            kafkaTemplate,
+            (record, exception) -> new TopicPartition(record.topic() + ".DLT", record.partition()));
     return new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3));
   }
 
@@ -49,5 +54,3 @@ public class NotificationKafkaConfig {
     return factory;
   }
 }
-
-

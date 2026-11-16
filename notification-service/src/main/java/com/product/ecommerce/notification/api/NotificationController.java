@@ -22,14 +22,15 @@ public class NotificationController {
 
   @GetMapping
   public ApiResponse<List<NotificationResponse>> list(Principal principal) {
-    return ApiResponse.success("Notifications retrieved",
-        notifications.listForUser(UUID.fromString(principal.getName())));
+    return ApiResponse.success(
+        "Notifications retrieved", notifications.listForUser(UUID.fromString(principal.getName())));
   }
 
   @PutMapping("/{notificationId}/read")
-  public ApiResponse<NotificationResponse> markRead(Principal principal,
-      @PathVariable UUID notificationId) {
-    return ApiResponse.success("Notification marked as read",
+  public ApiResponse<NotificationResponse> markRead(
+      Principal principal, @PathVariable UUID notificationId) {
+    return ApiResponse.success(
+        "Notification marked as read",
         notifications.markRead(UUID.fromString(principal.getName()), notificationId));
   }
 }

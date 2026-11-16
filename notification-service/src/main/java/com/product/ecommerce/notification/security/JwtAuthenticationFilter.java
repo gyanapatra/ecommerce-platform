@@ -38,8 +38,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
   }
 
   @Override
-  protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-      FilterChain filterChain) throws ServletException, IOException {
+  protected void doFilterInternal(
+      HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+      throws ServletException, IOException {
     String authorization = request.getHeader("Authorization");
     if (authorization == null || !authorization.startsWith("Bearer ")) {
       filterChain.doFilter(request, response);
@@ -48,17 +49,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     try {
       String token = authorization.substring(7).trim();
-      Claims claims = Jwts.parser().verifyWith(signingKey).build().parseSignedClaims(token).getPayload();
+      Claims claims =
+          Jwts.parser().verifyWith(signingKey).build().parseSignedClaims(token).getPayload();
       String userId = claims.getSubject();
       String role = claims.get("role", String.class);
-      if (userId == null || role == null || role.isBlank() || claims.getIssuedAt() == null
-          || claims.getExpiration() == null || claims.getIssuedAt().after(new Date())) {
+      if (userId == null
+          || role == null
+          || role.isBlank()
+          || claims.getIssuedAt() == null
+          || claims.getExpiration() == null
+          || claims.getIssuedAt().after(new Date())) {
         throw new IllegalArgumentException("Invalid JWT");
       }
       UUID.fromString(userId);
       String authority = role.startsWith("ROLE_") ? role : "ROLE_" + role;
-      var authentication = UsernamePasswordAuthenticationToken.authenticated(userId, null,
-          List.of(new SimpleGrantedAuthority(authority)));
+      var authentication =
+          UsernamePasswordAuthenticationToken.authenticated(
+              userId, null, List.of(new SimpleGrantedAuthority(authority)));
       SecurityContextHolder.getContext().setAuthentication(authentication);
     } catch (RuntimeException exception) {
       SecurityContextHolder.clearContext();

@@ -13,10 +13,17 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class NotificationExceptionHandler {
   @ExceptionHandler(ResourceNotFoundException.class)
-  public ResponseEntity<ErrorResponse> notFound(ResourceNotFoundException exception,
-      HttpServletRequest request) {
-    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(
-        Instant.now(), HttpStatus.NOT_FOUND.value(), HttpStatus.NOT_FOUND.getReasonPhrase(),
-        exception.getMessage(), request.getRequestURI(), null, Map.of()));
+  public ResponseEntity<ErrorResponse> notFound(
+      ResourceNotFoundException exception, HttpServletRequest request) {
+    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+        .body(
+            new ErrorResponse(
+                Instant.now(),
+                HttpStatus.NOT_FOUND.value(),
+                HttpStatus.NOT_FOUND.getReasonPhrase(),
+                exception.getMessage(),
+                request.getRequestURI(),
+                null,
+                Map.of()));
   }
 }

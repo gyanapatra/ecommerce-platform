@@ -16,12 +16,19 @@ public class SecurityConfig {
     return http.csrf(csrf -> csrf.disable())
         .httpBasic(basic -> basic.disable())
         .formLogin(form -> form.disable())
-        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-        .authorizeHttpRequests(authorize -> authorize
-            .requestMatchers("/actuator/health", "/actuator/info", "/swagger-ui.html",
-                "/swagger-ui/**", "/v3/api-docs/**")
-            .permitAll()
-            .anyRequest().authenticated())
+        .sessionManagement(
+            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .authorizeHttpRequests(authorize ->
+            authorize
+                .requestMatchers(
+                    "/actuator/health",
+                    "/actuator/info",
+                    "/swagger-ui.html",
+                    "/swagger-ui/**",
+                    "/v3/api-docs/**")
+                .permitAll()
+                .anyRequest()
+                .authenticated())
         .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
         .build();
   }
